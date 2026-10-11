@@ -337,7 +337,7 @@ const DEFAULTS = {
   msgFollowAsk: "{username}님, {title}악보는 팔로워 전용이에요 🙏\n@{account} 팔로우 후 아래 [팔로우 완료] 버튼을 눌러 주세요!",
   msgDelivery: "🎵 {title}악보예요!\n\n{link}\n\n연습하다 막히는 부분 있으면 편하게 DM 주세요 🙂",
   msgNoScore: "악보 요청 감사해요! 🥁\n이 영상 악보는 지금 정리 중이에요. 준비되는 대로 보내드릴게요 🙏",
-  sendImages: true, sendPdf: true, sendCard: false,
+  sendImages: true, sendPdf: false, sendCard: false,
 };
 
 // ---------- 상태 ----------
@@ -1029,7 +1029,7 @@ VIEWS.settings = () => {
         <h3>악보 보내는 방식</h3>
         <p class="sub">악보 전달 DM에 무엇을 함께 보낼지 골라요. 인스타 안에서는 사진이 가장 저장하기 쉬워요.</p>
         <div class="switch"><div class="t"><b>악보 사진</b><span>페이지별 사진 (최대 10장). DM에서 길게 눌러 바로 저장해요</span></div><label class="toggle"><input type="checkbox" id="setImg" ${s.sendImages !== false ? "checked" : ""}><i></i></label></div>
-        <div class="switch"><div class="t"><b>PDF 파일</b><span>PDF로 올린 악보만. 파일로 보관하거나 인쇄할 때 좋아요</span></div><label class="toggle"><input type="checkbox" id="setPdf" ${s.sendPdf !== false ? "checked" : ""}><i></i></label></div>
+        <div class="switch"><div class="t"><b>PDF 파일</b><span>PDF로 올린 악보만. 인스타에서는 누르면 페이스북 경유 링크로 열려요</span></div><label class="toggle"><input type="checkbox" id="setPdf" ${s.sendPdf === true ? "checked" : ""}><i></i></label></div>
         <div class="switch"><div class="t"><b>악보 페이지 카드</b><span>표지와 [악보 열기] 버튼. 레슨 상담 버튼이 있는 페이지로 이어져요</span></div><label class="toggle"><input type="checkbox" id="setCard" ${s.sendCard === true ? "checked" : ""}><i></i></label></div>
       </section>
       <section class="panel">

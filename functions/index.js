@@ -85,7 +85,7 @@ const DEFAULT_SETTINGS = {
   msgDeletion: "데이터 삭제 요청이 접수됐어요. 처리되면 다시 알려드릴게요 🙏",
   // 악보 보내는 방식
   sendImages: true, // 악보 사진(페이지별) - DM에서 길게 눌러 바로 저장
-  sendPdf: true, // PDF 파일 첨부
+  sendPdf: false, // PDF 파일 첨부 (인스타에서는 페이스북 경유 링크로 열려서 기본은 끔)
   sendCard: false, // 악보 페이지로 가는 카드
 };
 
@@ -345,7 +345,7 @@ async function sendScore(token, igsid, score, link, settings) {
       logger.warn("악보 사진 발송 실패", { igsid, error: e.detail || e.message });
     }
   }
-  if (settings.sendPdf !== false && isPdf) {
+  if (settings.sendPdf === true && isPdf) {
     try {
       await graphPost("/me/messages", token, {
         recipient: { id: igsid },
