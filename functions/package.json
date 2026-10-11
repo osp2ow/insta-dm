@@ -1,0 +1,13 @@
+{
+  "name": "insta-dm-functions",
+  "description": "주니퍼 악보 DM 자동 발송 서버",
+  "main": "index.js",
+  "private": true,
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.0",
+    "firebase-functions": "^7.4.0"
+  }
+}

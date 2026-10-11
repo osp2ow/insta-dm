@@ -1,0 +1,24 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Firestore의 관리자 명단(config/admins)을 그대로 따름
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && (request.auth.token.email == 'osp2ow@gmail.com'
+            || (firestore.exists(/databases/(default)/documents/config/admins)
+                && request.auth.token.email.lower()
+                   in firestore.get(/databases/(default)/documents/config/admins).data.emails));
+    }
+
+    // 악보 파일: 관리자만 올리고 지움. 일반 사용자는 /f/{id} 서버 경유로만 받음
+    match /scores/{scoreId}/{file} {
+      allow read, delete: if isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.size < 30 * 1024 * 1024
+        && (request.resource.contentType.matches('application/pdf')
+            || request.resource.contentType.matches('image/.*'));
+    }
+  }
+}

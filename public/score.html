@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>악보 · 주니퍼 실용음악학원</title>
+<meta name="theme-color" content="#18202b">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<style>
+:root {
+  --stage: #18202b;
+  --stage-2: #222c39;
+  --stage-3: #2b3646;
+  --on-stage: #e9edf2;
+  --on-stage-muted: #9aa8b8;
+  --paper: #ffffff;
+  --brass: #d9a441;
+  --brass-ink: #1a1408;
+  --line: #2f3b4a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--stage); color: var(--on-stage); }
+body {
+  font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  line-height: 1.55; word-break: keep-all; -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 28px 18px calc(120px + env(safe-area-inset-bottom)); }
+
+.academy { font-size: 14px; color: var(--on-stage-muted); text-decoration: none; }
+.academy b { color: var(--on-stage); font-weight: 650; }
+.title { margin: 22px 0 6px; font-size: clamp(32px, 8vw, 56px); line-height: 1.08; font-weight: 800; letter-spacing: -0.035em; }
+.meta { color: var(--on-stage-muted); font-size: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.inst { display: inline-flex; align-items: center; gap: 6px; color: var(--brass); font-weight: 700; }
+.inst svg { width: 18px; height: 18px; }
+
+/* 보면대 위의 악보 */
+.stand { margin-top: 26px; position: relative; }
+.sheet {
+  background: var(--paper); border-radius: 4px; overflow: hidden;
+  box-shadow: 0 30px 60px -20px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04);
+}
+.sheet img { display: block; width: 100%; height: auto; -webkit-touch-callout: default; user-select: auto; }
+.sheet img + img { border-top: 1px solid #e5e8ec; }
+.stand::after {
+  content: ""; display: block; height: 10px; margin: 0 6%;
+  background: linear-gradient(var(--stage-2), var(--stage)); border-radius: 0 0 6px 6px;
+}
+.loading, .error { padding: 70px 20px; text-align: center; color: #5b6b7d; background: var(--paper); }
+.error b { display: block; color: #18202b; font-size: 18px; margin-bottom: 4px; }
+.pages { display: flex; justify-content: space-between; gap: 12px; color: var(--on-stage-muted); font-size: 13px; margin-top: 10px; }
+
+.lesson { margin-top: 40px; padding: 22px 0 0; border-top: 1px solid var(--line); display: grid; gap: 14px; }
+.lesson h2 { font-size: 20px; margin: 0; letter-spacing: -0.02em; }
+.lesson p { margin: 0; color: var(--on-stage-muted); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 18px; border-radius: 10px; font-weight: 700; font-size: 16px; text-decoration: none;
+  border: 1px solid var(--line); background: var(--stage-2); color: var(--on-stage); cursor: pointer;
+}
+.btn svg { width: 18px; height: 18px; flex: none; }
+.btn.brass { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); }
+.lesson .row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* 아래 고정 버튼 */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, var(--stage) 30%);
+}
+.dock .inner { max-width: 860px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* 저장 방법 고르기 */
+.sheet-bg { position: fixed; inset: 0; background: rgba(5,8,12,.55); z-index: 20; }
+.save {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 21;
+  background: var(--stage-2); border-radius: 18px 18px 0 0;
+  padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+  max-width: 560px; margin: 0 auto;
+  animation: up .22s ease-out;
+}
+@keyframes up { from { transform: translateY(30px); opacity: .5; } to { transform: none; opacity: 1; } }
+.save .grab { width: 40px; height: 4px; border-radius: 4px; background: var(--line); margin: 0 auto 14px; }
+.save h3 { margin: 0 0 4px; font-size: 18px; }
+.save > p { margin: 0 0 14px; color: var(--on-stage-muted); font-size: 14px; }
+.opt {
+  display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: center; width: 100%;
+  padding: 13px 12px; border: 0; border-radius: 12px; background: none; text-align: left; cursor: pointer; text-decoration: none;
+}
+.opt:hover, .opt:active { background: var(--stage-3); }
+.opt .ic { width: 40px; height: 40px; border-radius: 10px; background: var(--stage-3); display: grid; place-items: center; color: var(--brass); }
+.opt .ic svg { width: 20px; height: 20px; }
+.opt b { display: block; font-size: 15.5px; }
+.opt span { display: block; color: var(--on-stage-muted); font-size: 13px; }
+.opt.recommend .ic { background: var(--brass); color: var(--brass-ink); }
+.guide { background: var(--stage-3); border-radius: 12px; padding: 14px 16px; margin-top: 8px; font-size: 14.5px; }
+.guide ol { margin: 6px 0 0; padding-left: 20px; }
+.guide li + li { margin-top: 4px; }
+
+.toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--on-stage); color: var(--stage); padding: 10px 18px; border-radius: 99px; font-weight: 700; font-size: 14px; z-index: 30; max-width: calc(100% - 32px); text-align: center; }
+
+.missing { min-height: 70vh; display: grid; align-content: center; gap: 10px; }
+.missing h1 { font-size: 30px; margin: 0; letter-spacing: -0.02em; }
+.missing p { color: var(--on-stage-muted); margin: 0 0 10px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="root">
+  <a class="academy" href="https://www.instagram.com/" target="_blank" rel="noopener"><b>주니퍼 실용음악학원</b></a>
+  <div class="loading" style="background:none;color:var(--on-stage-muted)">악보를 불러오는 중…</div>
+</div>
+<div id="overlay"></div>
+
+<script type="module">
+const ICONS = {
+  drum: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="9" rx="8" ry="3"/><path d="M4 9v7c0 1.7 3.6 3 8 3s8-1.3 8-3V9"/><path d="m4 3 6 5m10-5-6 5"/></svg>',
+  note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
+  dm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 3 3 10.5l7 2.5 2.5 7z"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg>',
+  photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
+  file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4m-6.8 7 6.8 4"/></svg>',
+  open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>',
+  hand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V5a1.5 1.5 0 0 1 3 0v5m0-1a1.5 1.5 0 0 1 3 0v2m0-1a1.5 1.5 0 0 1 3 0v4a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L4 15a1.5 1.5 0 0 1 2.4-1.8L9 15"/></svg>',
+};
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const root = document.getElementById("root");
+const overlay = document.getElementById("overlay");
+const id = (location.pathname.split("/").filter(Boolean).pop() || "").replace(/[^A-Za-z0-9]/g, "");
+
+// 어떤 브라우저에서 열었는지
+const UA = navigator.userAgent || "";
+const IN_APP = /Instagram|FBAN|FBAV|KAKAOTALK|NAVER\(inapp|Line\//i.test(UA);
+const ANDROID = /Android/i.test(UA);
+const IOS = /iPhone|iPad|iPod/i.test(UA) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const MOBILE = ANDROID || IOS;
+
+const state = { score: null, pages: [], pdfBlob: null, fileBlob: null, safeName: "score" };
+
+function toast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.setAttribute("role", "status");
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+
+function val(f) {
+  if (!f) return undefined;
+  if ("stringValue" in f) return f.stringValue;
+  if ("integerValue" in f) return Number(f.integerValue);
+  if ("doubleValue" in f) return f.doubleValue;
+  if ("booleanValue" in f) return f.booleanValue;
+  return undefined;
+}
+async function getDocPublic(cfg, path) {
+  const url = `https://firestore.googleapis.com/v1/projects/${cfg.projectId}/databases/(default)/documents/${path}?key=${cfg.apiKey}`;
+  const r = await fetch(url);
+  if (!r.ok) return null;
+  const j = await r.json();
+  const out = {};
+  for (const [k, v] of Object.entries(j.fields || {})) out[k] = val(v);
+  return out;
+}
+
+function missing(account) {
+  root.innerHTML = `
+    <div class="missing">
+      <h1>악보를 찾을 수 없어요</h1>
+      <p>링크가 바뀌었거나 내려간 악보예요. 인스타그램 DM으로 다시 요청해 주세요.</p>
+      ${account ? `<a class="btn brass" href="https://ig.me/m/${esc(account)}">${ICONS.dm} DM으로 요청하기</a>` : ""}
+    </div>`;
+}
+
+// ---------- 저장 도우미 ----------
+const countDownload = () => fetch(`/f/${id}?count=1`).catch(() => {});
+
+async function shareFiles(files, title) {
+  try {
+    if (navigator.canShare && navigator.canShare({ files })) {
+      await navigator.share({ files, title });
+      return "shared";
+    }
+  } catch (e) {
+    if (e?.name === "AbortError") return "cancelled";
+  }
+  return "unsupported";
+}
+
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function externalUrl() {
+  const here = location.href.replace(/^https?:\/\//, "");
+  if (ANDROID) return `intent://${here}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
+  if (IOS) return `x-safari-https://${here}`;
+  return location.href;
+}
+
+async function saveImages() {
+  const files = state.pages.map((b, i) => new File([b], `${state.safeName}${state.pages.length > 1 ? "_" + (i + 1) : ""}.jpg`, { type: "image/jpeg" }));
+  if (!files.length) return toast("악보를 아직 불러오는 중이에요");
+  const r = await shareFiles(files, state.score.title);
+  if (r === "shared") { countDownload(); closeSheet(); toast("공유창에서 '이미지 저장'을 고르면 사진첩에 들어가요"); return; }
+  if (r === "cancelled") return;
+  if (!MOBILE) { files.forEach((f) => downloadBlob(f, f.name)); countDownload(); closeSheet(); return; }
+  showGuide("longpress");
+}
+
+async function savePdf() {
+  if (state.pdfBlob) {
+    const f = new File([state.pdfBlob], `${state.safeName}.pdf`, { type: "application/pdf" });
+    const r = await shareFiles([f], state.score.title);
+    if (r === "shared") { countDownload(); closeSheet(); return; }
+    if (r === "cancelled") return;
+    if (!IN_APP) { downloadBlob(state.pdfBlob, f.name); countDownload(); closeSheet(); return; }
+    showGuide("external");
+    return;
+  }
+  // 이미지 악보는 원본 파일 그대로
+  if (state.fileBlob) {
+    const ext = (state.score.filePath || "").split(".").pop() || "jpg";
+    const f = new File([state.fileBlob], `${state.safeName}.${ext}`, { type: state.fileBlob.type || "image/jpeg" });
+    const r = await shareFiles([f], state.score.title);
+    if (r === "shared") { countDownload(); closeSheet(); return; }
+    if (r === "cancelled") return;
+    if (!IN_APP) { downloadBlob(f, f.name); countDownload(); closeSheet(); return; }
+    showGuide("longpress");
+  }
+}
+
+function showGuide(kind) {
+  const box = document.getElementById("guide");
+  if (!box) return;
+  if (kind === "longpress") {
+    box.innerHTML = `<b>악보를 길게 눌러 저장하세요</b><ol><li>이 창을 닫고 악보 그림을 <b>길게 누르기</b></li><li><b>${IOS ? "'사진 앱에 저장'" : "'이미지 다운로드'"}</b> 누르기</li>${state.pages.length > 1 ? `<li>${state.pages.length}쪽이면 쪽마다 반복</li>` : ""}</ol>`;
+  } else {
+    box.innerHTML = `<b>인스타 앱 안에서는 파일 저장이 막혀 있어요</b><ol><li>오른쪽 위 <b>⋯</b> 메뉴 누르기</li><li><b>${IOS ? "'외부 브라우저에서 열기'" : "'Chrome에서 열기'"}</b> 누르기</li><li>열린 페이지에서 다시 [악보 저장]</li></ol>`;
+  }
+  box.hidden = false;
+  box.scrollIntoView({ block: "nearest" });
+}
+
+function closeSheet() { overlay.innerHTML = ""; }
+
+function openSheet() {
+  const isPdf = !!state.pdfBlob;
+  overlay.innerHTML = `
+    <div class="sheet-bg" data-close></div>
+    <div class="save" role="dialog" aria-modal="true" aria-label="악보 저장">
+      <div class="grab"></div>
+      <h3>어떻게 저장할까요?</h3>
+      <p>${IN_APP ? "인스타 앱 안에서는 사진으로 저장하는 게 가장 편해요." : "휴대폰에서는 사진으로, PC에서는 PDF로 받는 걸 추천해요."}</p>
+      <button class="opt ${MOBILE ? "recommend" : ""}" id="optImg"><span class="ic">${ICONS.photo}</span><span><b>사진첩에 저장</b><span>악보를 이미지로 저장해요${state.pages.length > 1 ? ` (${state.pages.length}장)` : ""}</span></span></button>
+      <button class="opt ${!MOBILE ? "recommend" : ""}" id="optPdf"><span class="ic">${isPdf ? ICONS.file : ICONS.share}</span><span><b>${isPdf ? "PDF 파일로 저장" : "원본 파일로 저장"}</b><span>${MOBILE ? "파일 앱에 저장하거나 카톡으로 보낼 수 있어요" : "컴퓨터에 내려받아요"}</span></span></button>
+      ${IN_APP ? `<a class="opt" href="${esc(externalUrl())}"><span class="ic">${ICONS.open}</span><span><b>${IOS ? "Safari" : "Chrome"}에서 열기</b><span>저장이 안 되면 브라우저에서 다시 시도해요</span></span></a>` : ""}
+      <div class="guide" id="guide" hidden></div>
+    </div>`;
+  overlay.querySelectorAll("[data-close]").forEach((b) => (b.onclick = closeSheet));
+  document.getElementById("optImg").onclick = saveImages;
+  document.getElementById("optPdf").onclick = savePdf;
+  document.getElementById("optImg").focus();
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
+
+// ---------- 화면 ----------
+async function main() {
+  let cfg;
+  try { cfg = await (await fetch("/__/firebase/init.json")).json(); } catch { cfg = null; }
+  if (!cfg || !id) return missing("");
+  const [score, site] = await Promise.all([getDocPublic(cfg, `scores/${id}`), getDocPublic(cfg, "public/site")]);
+  const account = site?.account || "";
+  if (!score) return missing(account);
+  state.score = score;
+  state.safeName = String(score.title || "score").replace(/[\\/:*?"<>|]/g, "").trim() || "score";
+
+  const isPdf = (score.fileType || "").includes("pdf") || /\.pdf$/i.test(score.filePath || "");
+  const inst = score.instrument || "";
+  const icon = inst === "드럼" ? ICONS.drum : ICONS.note;
+  const profile = account ? `https://www.instagram.com/${encodeURIComponent(account)}/` : "https://www.instagram.com/";
+  const dm = account ? `https://ig.me/m/${encodeURIComponent(account)}` : profile;
+  document.title = `${score.title} 악보 · 주니퍼 실용음악학원`;
+
+  root.innerHTML = `
+    <a class="academy" href="${esc(profile)}" target="_blank" rel="noopener"><b>주니퍼 실용음악학원</b>${account ? ` @${esc(account)}` : ""}</a>
+    <h1 class="title">${esc(score.title)}</h1>
+    <div class="meta">${inst ? `<span class="inst">${icon}${esc(inst)}</span>` : ""}${score.artist ? `<span>${esc(score.artist)}</span>` : ""}</div>
+    <div class="stand"><div class="sheet" id="sheet"><div class="loading">악보를 펼치는 중…</div></div></div>
+    <div class="pages"><span id="pages"></span><span>${MOBILE ? "악보를 길게 누르면 바로 저장할 수 있어요" : ""}</span></div>
+    <section class="lesson">
+      <h2>이 곡, 직접 배워 보고 싶다면</h2>
+      <p>주니퍼 실용음악학원에서 드럼·기타·베이스·피아노·보컬·작곡 레슨을 하고 있어요. 막히는 구간이나 레슨이 궁금하면 DM으로 편하게 물어보세요.</p>
+      <div class="row"><a class="btn" href="${esc(profile)}" target="_blank" rel="noopener">${ICONS.note} 다른 연주 보기</a></div>
+    </section>
+    <div class="dock"><div class="inner">
+      <button class="btn" id="saveBtn" disabled>${ICONS.down} 악보 저장</button>
+      <a class="btn brass" href="${esc(dm)}">${ICONS.dm} 레슨 상담 DM</a>
+    </div></div>`;
+
+  const sheet = document.getElementById("sheet");
+  const saveBtn = document.getElementById("saveBtn");
+  saveBtn.onclick = openSheet;
+
+  try {
+    const res = await fetch(`/f/${id}`);
+    if (!res.ok) throw new Error("file " + res.status);
+    const blob = await res.blob();
+
+    if (!isPdf) {
+      state.fileBlob = blob;
+      const jpg = await toJpeg(blob);
+      state.pages = [jpg];
+      sheet.innerHTML = "";
+      sheet.appendChild(pageImg(jpg, 1));
+    } else {
+      state.pdfBlob = blob;
+      const pdfjs = await import("/vendor/pdfjs/pdf.min.mjs");
+      pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.mjs";
+      const pdf = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+      sheet.innerHTML = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const base = page.getViewport({ scale: 1 });
+        // 저장용 이미지라 화면 크기와 상관없이 선명하게 (가로 약 1800px)
+        const vp = page.getViewport({ scale: Math.min(1800 / base.width, 4) });
+        const c = document.createElement("canvas");
+        c.width = Math.floor(vp.width);
+        c.height = Math.floor(vp.height);
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        const jpg = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.9));
+        state.pages.push(jpg);
+        sheet.appendChild(pageImg(jpg, i));
+      }
+      if (pdf.numPages > 1) document.getElementById("pages").textContent = `총 ${pdf.numPages}쪽`;
+    }
+    saveBtn.disabled = false;
+  } catch (e) {
+    console.error(e);
+    sheet.innerHTML = `<div class="error"><b>여기서는 악보를 펼칠 수 없어요</b>잠시 뒤 다시 열거나, DM으로 알려 주세요.</div>`;
+  }
+}
+
+function pageImg(blob, i) {
+  const img = new Image();
+  img.src = URL.createObjectURL(blob);
+  img.alt = `${state.score.title} 악보${state.pages.length > 1 ? " " + i + "쪽" : ""}`;
+  return img;
+}
+
+async function toJpeg(blob) {
+  if (blob.type === "image/jpeg") return blob;
+  const bmp = await createImageBitmap(blob);
+  const c = document.createElement("canvas");
+  c.width = bmp.width;
+  c.height = bmp.height;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(bmp, 0, 0);
+  return await new Promise((r) => c.toBlob(r, "image/jpeg", 0.92));
+}
+
+main();
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+# main 브랜치에 코드가 올라오면 Firebase(서버·규칙·관리자 페이지)에 자동 배포
+# 필요한 것: 저장소 Settings → Secrets → Actions 에 FIREBASE_SERVICE_ACCOUNT (서비스 계정 키 JSON)
+name: Firebase 배포
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # Actions 탭에서 수동으로 다시 배포할 때
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: Node.js 22 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 서버 패키지 설치
+        working-directory: functions
+        run: npm install --no-audit --no-fund
+
+      - name: Firebase CLI 설치
+        run: npm install -g firebase-tools
+
+      - name: 배포
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA_JSON" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT 비밀값이 없어요. 저장소 Settings → Secrets and variables → Actions 에 추가하세요."
+            exit 1
+          fi
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          printf '%s' "$SA_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          firebase deploy --project insta---dm --non-interactive --force

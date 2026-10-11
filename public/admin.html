@@ -1,0 +1,1159 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>악보 DM 관리</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<style>
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --ink: #18202b;
+  --muted: #5b6b7d;
+  --faint: #8a97a6;
+  --line: #dce2e8;
+  --brass: #b07d22;
+  --brass-ink: #ffffff;
+  --brass-soft: #f6ecd8;
+  --ok: #2f7d5b;
+  --ok-soft: #e1f1e9;
+  --bad: #b4412f;
+  --bad-soft: #f8e3df;
+  --off-soft: #e7ebef;
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --shadow: 0 1px 2px rgba(24,32,43,.06), 0 8px 24px rgba(24,32,43,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11161d; --surface: #19212b; --ink: #e6ebf0; --muted: #9fb0c2; --faint: #6f8091;
+    --line: #2a3542; --brass: #d9a441; --brass-ink: #1a1408; --brass-soft: #3a2f1a;
+    --ok: #5cc196; --ok-soft: #1c3a2e; --bad: #ef7d6a; --bad-soft: #42231d; --off-soft: #232d38;
+    --shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: 15px; line-height: 1.55; word-break: keep-all;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* ---------- 로그인 ---------- */
+.gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.gate-box { max-width: 380px; text-align: left; }
+.gate h1 { font-size: 28px; line-height: 1.25; margin: 0 0 8px; letter-spacing: -0.02em; }
+.gate p { color: var(--muted); margin: 0 0 24px; }
+.gate .err { color: var(--bad); margin-top: 14px; }
+
+/* ---------- 레이아웃 ---------- */
+.app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.side {
+  position: sticky; top: 0; height: 100vh; padding: 22px 14px;
+  border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px;
+}
+.brand { padding: 0 10px 18px; }
+.brand b { display: block; font-size: 17px; letter-spacing: -0.01em; }
+.brand span { color: var(--faint); font-size: 13px; }
+.nav-btn {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; border: 0; background: none; border-radius: var(--radius-s);
+  cursor: pointer; text-align: left; color: var(--muted); font-weight: 500;
+}
+.nav-btn svg { width: 18px; height: 18px; flex: none; }
+.nav-btn:hover { color: var(--ink); background: var(--off-soft); }
+.nav-btn[aria-current="page"] { color: var(--ink); background: var(--surface); box-shadow: var(--shadow); font-weight: 650; }
+.side-foot { margin-top: auto; padding: 10px; font-size: 13px; color: var(--faint); }
+.side-foot button { border: 0; background: none; padding: 0; color: var(--muted); cursor: pointer; text-decoration: underline; }
+
+main { padding: 28px 32px 80px; max-width: 1180px; width: 100%; min-width: 0; }
+.grid2 > *, .settings-grid > * { min-width: 0; }
+.stack { display: grid; gap: 16px; align-content: start; }
+.stack > .panel + .panel { margin-top: 0; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
+.page-head h2 { font-size: 24px; margin: 0; letter-spacing: -0.02em; }
+.page-head p { margin: 4px 0 0; color: var(--muted); }
+
+/* ---------- 공통 요소 ---------- */
+.panel { background: var(--surface); border-radius: var(--radius-m); box-shadow: var(--shadow); padding: 20px; }
+.panel + .panel { margin-top: 16px; }
+.panel h3 { font-size: 16px; margin: 0 0 4px; }
+.panel .sub { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 16px; border-radius: var(--radius-s); border: 1px solid var(--line);
+  background: var(--surface); cursor: pointer; font-weight: 600; white-space: nowrap;
+}
+.btn:hover { border-color: var(--faint); }
+.btn.primary { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); }
+.btn.primary:hover { filter: brightness(1.05); }
+.btn.danger { color: var(--bad); }
+.btn.small { padding: 6px 11px; font-size: 13px; }
+.btn:disabled { opacity: .5; cursor: default; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.chip.on { background: var(--ok-soft); color: var(--ok); }
+.chip.off { background: var(--off-soft); color: var(--muted); }
+.chip.bad { background: var(--bad-soft); color: var(--bad); }
+.chip.brass { background: var(--brass-soft); color: var(--brass); }
+.field { display: grid; gap: 6px; margin-bottom: 16px; }
+.field label, .field .lbl { font-weight: 600; font-size: 14px; }
+.field .hint { color: var(--faint); font-size: 13px; }
+.input, select.input, textarea.input {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-s);
+  background: var(--bg);
+}
+textarea.input { min-height: 96px; resize: vertical; line-height: 1.5; }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.switch:last-child { border-bottom: 0; }
+.switch .t b { display: block; font-size: 14.5px; }
+.switch .t span { color: var(--faint); font-size: 13px; }
+.toggle { position: relative; width: 44px; height: 26px; flex: none; }
+.toggle input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.toggle i { position: absolute; inset: 0; border-radius: 99px; background: var(--line); transition: background .15s; pointer-events: none; }
+.toggle i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.toggle input:checked + i { background: var(--brass); }
+.toggle input:checked + i::after { transform: translateX(18px); }
+.toggle input:focus-visible + i { outline: 2px solid var(--brass); outline-offset: 2px; }
+.empty { padding: 36px 16px; text-align: center; color: var(--muted); }
+.empty b { display: block; color: var(--ink); margin-bottom: 4px; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- 대시보드: 오선 위의 한 마디 ---------- */
+.measure-wrap { padding: 24px 20px 18px; }
+.measure {
+  --staff: var(--line);
+  position: relative; display: grid; grid-template-columns: repeat(4, 1fr);
+  height: 220px; margin: 8px 0 0;
+  border-left: 3px solid var(--ink); border-right: 3px double var(--ink);
+  background:
+    linear-gradient(var(--staff), var(--staff)) 0 0 / 100% 1px no-repeat,
+    linear-gradient(var(--staff), var(--staff)) 0 25% / 100% 1px no-repeat,
+    linear-gradient(var(--staff), var(--staff)) 0 50% / 100% 1px no-repeat,
+    linear-gradient(var(--staff), var(--staff)) 0 75% / 100% 1px no-repeat,
+    linear-gradient(var(--staff), var(--staff)) 0 100% / 100% 1px no-repeat;
+}
+.beat { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.beat + .beat { border-left: 1px dashed var(--line); }
+.beat .stem { width: 34%; max-width: 64px; min-height: 3px; background: var(--ink); border-radius: 3px 3px 0 0; transition: height .6s cubic-bezier(.2,.8,.2,1); }
+.beat:last-child .stem { background: var(--brass); }
+.beat .count { position: absolute; top: 10px; font-size: 30px; font-weight: 750; letter-spacing: -0.03em; background: var(--surface); padding: 0 6px; }
+.beat-labels { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 12px; }
+.beat-labels div { text-align: center; padding: 0 6px; }
+.beat-labels b { display: block; font-size: 14px; }
+.beat-labels span { color: var(--faint); font-size: 12.5px; }
+.rates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+.rate { padding: 14px 16px; border-radius: var(--radius-m); background: var(--bg); }
+.rate .v { font-size: 26px; font-weight: 750; letter-spacing: -0.02em; }
+.rate .k { font-weight: 600; font-size: 14px; }
+.rate .d { color: var(--faint); font-size: 12.5px; }
+.rate.feature { background: var(--brass-soft); }
+.rate.feature .v { color: var(--brass); }
+.grid2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; margin-top: 16px; }
+.grid2 .panel + .panel { margin-top: 0; }
+.spark { width: 100%; height: 96px; display: block; }
+.spark-meta { display: flex; justify-content: space-between; color: var(--faint); font-size: 12.5px; margin-top: 6px; }
+.health { list-style: none; margin: 0; padding: 0; }
+.health li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.health li:last-child { border-bottom: 0; }
+.health .k { color: var(--muted); }
+
+/* ---------- 게시물 ---------- */
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.seg { display: inline-flex; background: var(--surface); border-radius: var(--radius-s); padding: 3px; box-shadow: var(--shadow); }
+.seg button { border: 0; background: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; color: var(--muted); font-weight: 600; font-size: 13.5px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+.media {
+  display: flex; flex-direction: column;
+  background: var(--surface); border-radius: var(--radius-m); overflow: hidden; box-shadow: var(--shadow);
+}
+.media .thumb { position: relative; aspect-ratio: 4 / 5; background: var(--off-soft); overflow: hidden; }
+.media .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.media .thumb .kind { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.55); color: #fff; font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+.media .thumb .chip { position: absolute; top: 8px; right: 8px; }
+.media .body { padding: 10px 12px 12px; display: grid; gap: 4px; }
+.media .cap { font-size: 13.5px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.9em; }
+.media .meta { font-size: 13px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.media .meta .score { font-weight: 650; }
+.media .stats { font-size: 12.5px; color: var(--faint); }
+.media-open { display: flex; flex-direction: column; text-align: left; padding: 0; border: 0; background: none; cursor: pointer; flex: 1; }
+.media-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 13px; font-weight: 600; }
+.media.is-off .thumb img { filter: grayscale(.85); opacity: .7; }
+.media.is-off .media-foot span { color: var(--faint); }
+
+/* ---------- 편집 서랍 ---------- */
+.drawer-bg { position: fixed; inset: 0; background: rgba(10,14,20,.35); z-index: 20; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%); z-index: 21;
+  background: var(--surface); box-shadow: -8px 0 32px rgba(0,0,0,.15);
+  display: flex; flex-direction: column;
+  animation: slideIn .22s ease-out;
+}
+@keyframes slideIn { from { transform: translateX(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+.drawer header { display: flex; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--line); align-items: flex-start; }
+.drawer header img { width: 56px; height: 70px; object-fit: cover; border-radius: var(--radius-s); background: var(--off-soft); flex: none; }
+.drawer header .cap { font-size: 14px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.drawer header .x { margin-left: auto; border: 0; background: none; font-size: 22px; line-height: 1; cursor: pointer; color: var(--muted); padding: 4px; }
+.drawer .content { padding: 18px 20px; overflow: auto; flex: 1; }
+.drawer footer { padding: 14px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+.kw-box { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); }
+.kw-box .kw { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 3px 6px 3px 11px; font-size: 13.5px; font-weight: 600; }
+.kw-box .kw button { border: 0; background: none; cursor: pointer; color: var(--faint); font-size: 15px; line-height: 1; padding: 0 3px; }
+.kw-box input { flex: 1; min-width: 120px; border: 0; background: none; padding: 4px; outline: none; }
+.mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 18px; }
+.mini-stats div { background: var(--bg); border-radius: var(--radius-s); padding: 8px 10px; }
+.mini-stats b { display: block; font-size: 18px; }
+.mini-stats span { font-size: 12px; color: var(--faint); }
+
+/* ---------- 표 ---------- */
+.table-wrap { background: var(--surface); border-radius: var(--radius-m); box-shadow: var(--shadow); overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-weight: 600; color: var(--muted); font-size: 13px; padding: 11px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; position: sticky; top: 0; background: var(--surface); }
+td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.time { color: var(--faint); white-space: nowrap; font-size: 13px; }
+td.user { font-weight: 600; white-space: nowrap; }
+td.text { max-width: 360px; }
+td.post { color: var(--muted); font-size: 13px; max-width: 200px; }
+td .err { display: block; color: var(--bad); font-size: 12.5px; margin-top: 2px; }
+
+/* ---------- 악보 ---------- */
+.score-list { display: grid; gap: 10px; }
+.score-row .cover { width: 96px; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: 6px; background: var(--off-soft); display: grid; place-items: center; font-size: 11.5px; color: var(--faint); }
+.score-row .row-actions { grid-column: 1 / -1; }
+.score-row { display: grid; grid-template-columns: auto 1fr; gap: 12px 14px; align-items: center; padding: 14px 16px; background: var(--surface); border-radius: var(--radius-m); box-shadow: var(--shadow); }
+.score-row .t b { font-size: 15.5px; }
+.score-row .t span { color: var(--faint); font-size: 13px; }
+.score-row .t .use { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.upload { border: 1.5px dashed var(--line); border-radius: var(--radius-m); padding: 16px; text-align: center; color: var(--muted); cursor: pointer; display: block; }
+.upload:hover { border-color: var(--brass); }
+.upload input { display: none; }
+.upload b { color: var(--ink); }
+.progress { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+.progress i { display: block; height: 100%; background: var(--brass); width: 0; transition: width .2s; }
+
+/* ---------- 설정 ---------- */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.settings-grid .panel + .panel { margin-top: 0; }
+.ph { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.ph button { border: 1px solid var(--line); background: var(--bg); border-radius: 4px; padding: 1px 7px; font-size: 12.5px; cursor: pointer; color: var(--muted); }
+.preview { white-space: pre-wrap; background: var(--bg); border-radius: 14px 14px 14px 4px; padding: 10px 13px; font-size: 13.5px; color: var(--ink); max-width: 320px; }
+.preview .qr { display: inline-block; margin-top: 8px; border: 1px solid var(--brass); color: var(--brass); border-radius: 99px; padding: 2px 10px; font-size: 12.5px; font-weight: 600; }
+
+/* ---------- 알림 ---------- */
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: 99px; font-weight: 600; z-index: 50; box-shadow: var(--shadow); max-width: calc(100% - 32px); }
+.toast.bad { background: var(--bad); color: #fff; }
+
+/* ---------- 반응형 ---------- */
+@media (max-width: 960px) {
+  .grid2, .settings-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  .side {
+    position: fixed; top: auto; bottom: 0; left: 0; right: 0; height: auto; z-index: 10;
+    flex-direction: row; padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); gap: 2px;
+    border-right: 0; border-top: 1px solid var(--line); background: var(--surface);
+    overflow-x: auto;
+  }
+  .brand, .side-foot { display: none; }
+  .nav-btn { flex-direction: column; gap: 2px; font-size: 11.5px; padding: 6px 4px; min-width: 64px; align-items: center; }
+  .nav-btn[aria-current="page"] { box-shadow: none; background: var(--off-soft); }
+  main { padding: 20px 16px 110px; }
+  .rates { grid-template-columns: 1fr; }
+  .measure { height: 170px; }
+  .beat .count { font-size: 22px; }
+  .beat-labels b { font-size: 12.5px; }
+  .beat-labels span { display: none; }
+  .media-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .media .body { padding: 8px 10px 10px; }
+  .media .cap { font-size: 12.5px; }
+  .page-head h2 { font-size: 21px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- 로그인 -->
+<section class="gate" id="gate" hidden>
+  <div class="gate-box">
+    <h1>악보 DM 관리</h1>
+    <p>주니퍼 인스타 계정의 댓글 자동 DM을 설정하고 기록을 확인하는 곳이에요. 관리자로 등록된 Google 계정으로 로그인하세요.</p>
+    <button class="btn primary" id="loginBtn">Google로 로그인</button>
+    <div class="err" id="gateErr"></div>
+  </div>
+</section>
+
+<!-- 앱 -->
+<div class="app" id="app" hidden>
+  <nav class="side" aria-label="메뉴">
+    <div class="brand"><b>악보 DM 관리</b><span id="acctName">@…</span></div>
+    <button class="nav-btn" data-view="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 18V9m5 9V5m5 13v-6m5 6V8"/></svg>한눈에</button>
+    <button class="nav-btn" data-view="posts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>게시물</button>
+    <button class="nav-btn" data-view="scores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>악보</button>
+    <button class="nav-btn" data-view="comments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>댓글 기록</button>
+    <button class="nav-btn" data-view="dms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 3 3 10.5l7 2.5 2.5 7z"/><path d="m10 13 4-4"/></svg>DM 기록</button>
+    <button class="nav-btn" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>설정</button>
+    <div class="side-foot"><span id="userEmail"></span><br><button id="logoutBtn">로그아웃</button></div>
+  </nav>
+  <main id="main"></main>
+</div>
+
+<div id="overlay"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import { getFirestore, collection, doc, onSnapshot, query, orderBy, limit, setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, getDocs, where } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js";
+import { getStorage, ref as sref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
+
+const SITE = location.origin;
+const OWNER = "osp2ow@gmail.com"; // 항상 접속 가능한 기본 관리자
+const BUCKET_FALLBACK = "gs://insta---dm.firebasestorage.app";
+
+// ---------- 기본값 (서버와 동일) ----------
+const DEFAULTS = {
+  unconfiguredMode: "ignore",
+  defaultKeywords: ["악보"],
+  defaultFollowersOnly: false,
+  publicReplyEnabled: true,
+  publicReplies: ["DM으로 악보 보내드렸어요! 🥁", "DM 확인해 주세요! 🎸", "보내드렸어요! DM함 확인해 주세요 🎶", "DM 보냈어요! 즐거운 연습 되세요 🙌"],
+  buttonLabel: "악보 받기 🎵",
+  followButtonLabel: "팔로우 완료 ✅",
+  msgOpening: "안녕하세요 {username}님! 🥁\n{title}악보 보내드릴게요.\n\n아래 [악보 받기] 버튼을 눌러 주세요!\n(버튼이 안 보이면 이 메시지에 아무 답장이나 보내 주세요)",
+  msgFollowAsk: "{username}님, {title}악보는 팔로워 전용이에요 🙏\n@{account} 팔로우 후 아래 [팔로우 완료] 버튼을 눌러 주세요!",
+  msgDelivery: "🎵 {title}악보예요!\n\n{link}\n\n연습하다 막히는 부분 있으면 편하게 DM 주세요 🙂",
+  msgNoScore: "악보 요청 감사해요! 🥁\n이 영상 악보는 지금 정리 중이에요. 준비되는 대로 보내드릴게요 🙏",
+  sendImages: true, sendPdf: true, sendCard: false,
+};
+
+// ---------- 상태 ----------
+const S = {
+  view: "home", user: null,
+  settings: { ...DEFAULTS }, posts: {}, scores: [], totals: {}, daily: [],
+  media: [], mediaAfter: null, mediaHasNext: false, mediaLoading: false, mediaError: "",
+  status: null, comments: [], dms: [], deletions: [], admins: [],
+  postFilter: "all", commentFilter: "all", dmFilter: "all",
+};
+
+let app, auth, db, fns, storage, adminFn;
+const unsub = [];
+
+// ---------- 유틸 ----------
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const n = (v) => Number(v || 0).toLocaleString("ko-KR");
+const pct = (a, b) => (b ? Math.round((a / b) * 100) + "%" : "–");
+function when(ts) {
+  const d = ts?.toDate ? ts.toDate() : ts ? new Date(ts) : null;
+  if (!d || isNaN(d)) return "";
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return "방금";
+  if (diff < 3600) return Math.floor(diff / 60) + "분 전";
+  if (diff < 86400) return Math.floor(diff / 3600) + "시간 전";
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+function toast(msg, bad = false) {
+  const t = document.createElement("div");
+  t.className = "toast" + (bad ? " bad" : "");
+  t.setAttribute("role", "status");
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+function caption(mediaId) {
+  const p = S.posts[mediaId];
+  const m = S.media.find((x) => x.id === mediaId);
+  const c = (m?.caption ?? p?.caption ?? "").replace(/\s+/g, " ").trim();
+  if (c) return c.length > 28 ? c.slice(0, 28) + "…" : c;
+  return mediaId ? "게시물 " + String(mediaId).slice(-5) : "–";
+}
+function scoreTitle(id) { return S.scores.find((s) => s.id === id)?.title || ""; }
+function kindLabel(m) {
+  if (m.media_product_type === "REELS") return "릴스";
+  if (m.media_type === "CAROUSEL_ALBUM") return "여러 장";
+  if (m.media_type === "VIDEO") return "동영상";
+  return "사진";
+}
+function postState(id) {
+  const p = S.posts[id];
+  if (p?.configured) return p.enabled === false ? "off" : "on";
+  return S.settings.unconfiguredMode === "default" ? "default" : "off";
+}
+const isOn = (id) => postState(id) !== "off";
+
+// ---------- 부팅 ----------
+async function boot() {
+  let cfg;
+  try {
+    cfg = await (await fetch("/__/firebase/init.json")).json();
+  } catch {
+    document.body.innerHTML = '<div class="gate"><div class="gate-box"><h1>설정을 불러오지 못했어요</h1><p>Firebase 웹 앱이 등록돼 있는지 확인한 뒤 호스팅을 다시 배포하세요.</p></div></div>';
+    return;
+  }
+  app = initializeApp(cfg);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  fns = getFunctions(app, "asia-northeast3");
+  storage = cfg.storageBucket ? getStorage(app) : getStorage(app, BUCKET_FALLBACK);
+  adminFn = httpsCallable(fns, "admin");
+
+  getRedirectResult(auth).catch((e) => ($("#gateErr").textContent = e.message));
+  onAuthStateChanged(auth, (user) => {
+    unsub.splice(0).forEach((f) => f());
+    if (!user) {
+      $("#app").hidden = true;
+      $("#gate").hidden = false;
+      return;
+    }
+    S.user = user;
+    $("#gate").hidden = true;
+    $("#app").hidden = false;
+    $("#userEmail").textContent = user.email;
+    start();
+  });
+}
+
+$("#loginBtn").onclick = async () => {
+  const p = new GoogleAuthProvider();
+  try {
+    await signInWithPopup(auth, p);
+  } catch (e) {
+    if (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment") {
+      await signInWithRedirect(auth, p);
+    } else if (e.code !== "auth/popup-closed-by-user") {
+      $("#gateErr").textContent = "로그인하지 못했어요: " + e.message;
+    }
+  }
+};
+$("#logoutBtn").onclick = () => signOut(auth);
+
+function denied(e) {
+  if (e?.code === "permission-denied") {
+    $("#app").hidden = true;
+    $("#gate").hidden = false;
+    $("#gateErr").textContent = `${S.user?.email} 계정은 아직 관리자로 등록되지 않았어요. 관리자에게 이 이메일을 설정 > 관리자에 추가해 달라고 한 뒤 다시 로그인하세요.`;
+    signOut(auth);
+    return true;
+  }
+  return false;
+}
+
+function start() {
+  const watch = (q, fn) => unsub.push(onSnapshot(q, fn, (e) => { if (!denied(e)) console.error(e); }));
+  watch(doc(db, "config/admins"), (s) => { S.admins = (s.data()?.emails || []).filter((e) => e !== OWNER); if (S.view === "settings") render(); });
+  watch(doc(db, "config/settings"), (s) => { S.settings = { ...DEFAULTS, ...(s.data() || {}) }; render(); });
+  watch(collection(db, "posts"), (qs) => { S.posts = {}; qs.forEach((d) => (S.posts[d.id] = d.data())); render(); });
+  watch(query(collection(db, "scores"), orderBy("createdAt", "desc")), (qs) => { S.scores = qs.docs.map((d) => ({ id: d.id, ...d.data() })); render(); });
+  watch(doc(db, "stats/totals"), (s) => { S.totals = s.data() || {}; if (S.view === "home") render(); });
+  watch(query(collection(db, "daily"), orderBy("date", "desc"), limit(30)), (qs) => { S.daily = qs.docs.map((d) => d.data()).reverse(); if (S.view === "home") render(); });
+  watch(query(collection(db, "comments"), orderBy("createdAt", "desc"), limit(300)), (qs) => { S.comments = qs.docs.map((d) => ({ id: d.id, ...d.data() })); if (S.view === "comments") render(); });
+  watch(query(collection(db, "dms"), orderBy("createdAt", "desc"), limit(300)), (qs) => { S.dms = qs.docs.map((d) => ({ id: d.id, ...d.data() })); if (S.view === "dms") render(); });
+  watch(query(collection(db, "deletionRequests"), orderBy("createdAt", "desc"), limit(50)), (qs) => { S.deletions = qs.docs.map((d) => ({ id: d.id, ...d.data() })); if (S.view === "settings") render(); });
+  loadStatus();
+  loadMedia(true);
+  go(location.hash.slice(1) || "home");
+}
+
+async function loadStatus() {
+  try {
+    S.status = (await adminFn({ action: "status" })).data;
+    $("#acctName").textContent = S.status?.account?.username ? "@" + S.status.account.username : "";
+  } catch (e) {
+    S.status = { error: e.message };
+  }
+  if (S.view === "home" || S.view === "settings") render();
+}
+
+async function loadMedia(reset) {
+  if (S.mediaLoading) return;
+  S.mediaLoading = true;
+  S.mediaError = "";
+  if (S.view === "posts") render();
+  try {
+    const r = (await adminFn({ action: "listMedia", after: reset ? null : S.mediaAfter })).data;
+    S.media = reset ? r.items : S.media.concat(r.items);
+    S.mediaAfter = r.after;
+    S.mediaHasNext = r.hasNext;
+  } catch (e) {
+    S.mediaError = e.message;
+  }
+  S.mediaLoading = false;
+  if (S.view === "posts" || S.view === "home") render();
+}
+
+// ---------- 라우팅 ----------
+document.querySelectorAll(".nav-btn").forEach((b) => (b.onclick = () => go(b.dataset.view)));
+function go(view) {
+  if (!VIEWS[view]) view = "home";
+  S.view = view;
+  history.replaceState(null, "", "#" + view);
+  document.querySelectorAll(".nav-btn").forEach((b) => (b.dataset.view === view ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current")));
+  render();
+  window.scrollTo(0, 0);
+}
+function render() {
+  if (!S.user) return;
+  const active = document.activeElement;
+  const keep = active && active.id && $("#main").contains(active) ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
+  $("#main").innerHTML = VIEWS[S.view]();
+  BIND[S.view]?.();
+  if (keep) {
+    const el = document.getElementById(keep.id);
+    if (el) { el.focus(); try { el.setSelectionRange(keep.start, keep.end); } catch {} }
+  }
+}
+
+// ---------- 화면: 한눈에 ----------
+const VIEWS = {};
+const BIND = {};
+
+VIEWS.home = () => {
+  const t = S.totals;
+  const beats = [
+    { v: t.matched, k: "키워드 댓글", d: `전체 댓글 ${n(t.comments)}개 중` },
+    { v: t.opened, k: "첫 DM 발송", d: "버튼이 담긴 안내" },
+    { v: t.responded, k: "버튼 응답", d: "DM에서 누른 사람" },
+    { v: t.delivered, k: "악보 전달", d: "링크까지 받은 사람" },
+  ];
+  const max = Math.max(1, ...beats.map((b) => b.v || 0));
+  const st = S.status;
+  const fields = st?.subscribedFields || [];
+  const hasComments = fields.includes("comments"), hasMessages = fields.includes("messages");
+  return `
+  <div class="page-head"><div><h2>한눈에</h2><p>댓글에서 악보 전달까지, 지금까지 쌓인 흐름이에요.</p></div></div>
+  <section class="panel measure-wrap" aria-label="전달 흐름">
+    <div class="measure" role="img" aria-label="${beats.map((b) => `${b.k} ${n(b.v)}`).join(", ")}">
+      ${beats.map((b) => `<div class="beat"><span class="count num">${n(b.v)}</span><div class="stem" style="height:${Math.max(2, Math.round(((b.v || 0) / max) * 62))}%"></div></div>`).join("")}
+    </div>
+    <div class="beat-labels">${beats.map((b) => `<div><b>${b.k}</b><span>${b.d}</span></div>`).join("")}</div>
+    <div class="rates">
+      <div class="rate"><div class="k">버튼 응답률</div><div class="v num">${pct(t.responded, t.opened)}</div><div class="d">첫 DM 받은 사람 중 버튼을 누른 비율</div></div>
+      <div class="rate"><div class="k">전달 완료율</div><div class="v num">${pct(t.delivered, t.opened)}</div><div class="d">첫 DM 받은 사람 중 악보까지 받은 비율</div></div>
+      <div class="rate feature"><div class="k">팔로우 전환율</div><div class="v num">${pct(t.converted, t.followAsked)}</div><div class="d">팔로우 요청 ${n(t.followAsked)}명 중 ${n(t.converted)}명이 팔로우</div></div>
+    </div>
+  </section>
+  <div class="grid2">
+    <section class="panel">
+      <h3>팔로워 수</h3>
+      <p class="sub">매일 밤 11시 55분에 기록해요.</p>
+      ${spark()}
+    </section>
+    <section class="panel">
+      <h3>연결 상태</h3>
+      <p class="sub">문제가 보이면 설정에서 다시 연결할 수 있어요.</p>
+      ${st ? (st.error ? `<p class="err" style="color:var(--bad)">${esc(st.error)}</p>` : `
+      <ul class="health">
+        <li><span class="k">계정</span><b>@${esc(st.account?.username || "?")}</b></li>
+        <li><span class="k">현재 팔로워</span><b class="num">${n(st.account?.followers_count)}</b></li>
+        <li><span class="k">댓글 알림</span>${hasComments ? '<span class="chip on">받는 중</span>' : '<span class="chip bad">끊김</span>'}</li>
+        <li><span class="k">DM 알림</span>${hasMessages ? '<span class="chip on">받는 중</span>' : '<span class="chip bad">끊김</span>'}</li>
+        <li><span class="k">토큰 갱신</span><span>${st.tokenRefreshedAt ? when(st.tokenRefreshedAt) : "아직 없음 (매주 월요일 자동)"}</span></li>
+      </ul>`) : '<p class="sub">불러오는 중…</p>'}
+    </section>
+  </div>
+  ${topPosts()}`;
+};
+
+function spark() {
+  const pts = S.daily.filter((d) => typeof d.followers === "number");
+  if (pts.length < 2) return `<div class="empty"><b>아직 기록이 부족해요</b>이틀 이상 쌓이면 그래프가 생겨요.${pts[0] ? ` 오늘 기록: ${n(pts[0].followers)}명` : ""}</div>`;
+  const vals = pts.map((p) => p.followers);
+  const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+  const W = 300, H = 96;
+  const xy = vals.map((v, i) => [(i / (vals.length - 1)) * W, H - 8 - ((v - lo) / span) * (H - 16)]);
+  const line = xy.map((p) => p.map((x) => x.toFixed(1)).join(",")).join(" ");
+  const diff = vals[vals.length - 1] - vals[0];
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="팔로워 ${n(vals[0])}명에서 ${n(vals[vals.length - 1])}명">
+    <polyline points="${line}" fill="none" stroke="var(--brass)" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+  </svg>
+  <div class="spark-meta"><span>${esc(pts[0].date)} · ${n(vals[0])}명</span><span><b style="color:var(--ink)">${diff >= 0 ? "+" : ""}${n(diff)}</b> → ${n(vals[vals.length - 1])}명</span></div>`;
+}
+
+function topPosts() {
+  const rows = Object.entries(S.posts).filter(([, p]) => p.stats && (p.stats.matched || p.stats.opened)).sort((a, b) => (b[1].stats.delivered || 0) - (a[1].stats.delivered || 0)).slice(0, 8);
+  if (!rows.length) return "";
+  return `<section class="panel" style="margin-top:16px"><h3>게시물별 성과</h3><p class="sub">악보를 많이 보낸 순서예요.</p>
+  <div class="table-wrap" style="box-shadow:none"><table><thead><tr><th>게시물</th><th>악보</th><th>키워드 댓글</th><th>버튼 응답</th><th>악보 전달</th><th>팔로우 전환</th></tr></thead><tbody>
+  ${rows.map(([id, p]) => `<tr><td class="post">${esc(caption(id))}</td><td>${esc(scoreTitle(p.scoreId) || "–")}</td><td class="num">${n(p.stats.matched)}</td><td class="num">${n(p.stats.responded)}</td><td class="num">${n(p.stats.delivered)}</td><td class="num">${p.stats.followAsked ? `${n(p.stats.converted)} / ${n(p.stats.followAsked)}` : "–"}</td></tr>`).join("")}
+  </tbody></table></div></section>`;
+}
+
+// ---------- 화면: 게시물 ----------
+VIEWS.posts = () => {
+  const f = S.postFilter;
+  const list = S.media.filter((m) => f === "all" || (f === "on" && isOn(m.id)) || (f === "off" && !isOn(m.id)));
+  const onCount = S.media.filter((m) => isOn(m.id)).length;
+  const defaultText = S.settings.unconfiguredMode === "default" ? `켜지 않은 게시물도 기본 키워드(${(S.settings.defaultKeywords || []).join(", ")})로 응답하고 있어요.` : "스위치를 켠 게시물에만 DM을 보내요.";
+  return `
+  <div class="page-head"><div><h2>게시물</h2><p>${esc(defaultText)} 게시물을 누르면 키워드와 보낼 악보를 정할 수 있어요.</p></div>
+    <button class="btn" id="reloadMedia">새로고침</button></div>
+  <div class="toolbar"><div class="seg" role="group" aria-label="보기">
+    ${[["all", `전체 ${S.media.length}`], ["on", `켜짐 ${onCount}`], ["off", "꺼짐"]].map(([k, l]) => `<button data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join("")}
+  </div></div>
+  ${S.mediaError ? `<div class="panel"><b style="color:var(--bad)">게시물을 불러오지 못했어요.</b><p class="sub">${esc(S.mediaError)}</p></div>` : ""}
+  ${!S.media.length && S.mediaLoading ? '<div class="empty">게시물을 불러오는 중…</div>' : ""}
+  ${!S.media.length && !S.mediaLoading && !S.mediaError ? '<div class="empty"><b>게시물이 없어요</b>인스타그램에 올린 게시물이 여기에 나타나요.</div>' : ""}
+  <div class="media-grid">${list.map(mediaCard).join("")}</div>
+  ${S.mediaHasNext ? `<div style="text-align:center;margin-top:18px"><button class="btn" id="moreMedia" ${S.mediaLoading ? "disabled" : ""}>${S.mediaLoading ? "불러오는 중…" : "더 보기"}</button></div>` : ""}`;
+};
+
+function mediaCard(m) {
+  const p = S.posts[m.id] || {};
+  const st = postState(m.id);
+  const on = st !== "off";
+  const chip = st === "default" ? '<span class="chip brass">기본 키워드</span>' : p.followersOnly && on ? '<span class="chip brass">팔로워 전용</span>' : "";
+  const kws = p.configured ? p.keywords || [] : S.settings.defaultKeywords || [];
+  const img = m.thumbnail_url || (m.media_type !== "VIDEO" ? m.media_url : "");
+  const s = p.stats || {};
+  return `<article class="media${on ? "" : " is-off"}">
+    <button class="media-open" data-id="${esc(m.id)}" aria-label="${esc((m.caption || kindLabel(m)).slice(0, 40))} 설정 열기">
+      <div class="thumb">${img ? `<img src="${esc(img)}" alt="" loading="lazy">` : ""}<span class="kind">${kindLabel(m)}</span>${chip}</div>
+      <div class="body">
+        <div class="cap">${esc((m.caption || "캡션 없음").slice(0, 80))}</div>
+        ${on ? `<div class="meta"><span>키워드 <b>${esc(kws.join(", ") || "–")}</b></span></div>
+        <div class="meta">${p.scoreId ? `<span class="score">♪ ${esc(scoreTitle(p.scoreId) || "삭제된 악보")}</span>` : '<span style="color:var(--faint)">악보 미연결 → 정리 중 안내</span>'}</div>` : ""}
+        <div class="stats num">댓글 ${n(m.comments_count)} · 요청 ${n(s.matched)} · 전달 ${n(s.delivered)}</div>
+      </div>
+    </button>
+    <div class="media-foot"><span>${on ? "자동 DM 켜짐" : "자동 DM 꺼짐"}</span>
+      <label class="toggle"><input type="checkbox" data-toggle="${esc(m.id)}" ${on ? "checked" : ""} aria-label="이 게시물 자동 DM"><i></i></label></div>
+  </article>`;
+}
+
+BIND.posts = () => {
+  $("#reloadMedia").onclick = () => loadMedia(true);
+  $("#moreMedia") && ($("#moreMedia").onclick = () => loadMedia(false));
+  document.querySelectorAll(".seg [data-f]").forEach((b) => (b.onclick = () => { S.postFilter = b.dataset.f; render(); }));
+  document.querySelectorAll(".media-open").forEach((b) => (b.onclick = () => openEditor(b.dataset.id)));
+  document.querySelectorAll("[data-toggle]").forEach((t) => (t.onchange = async () => {
+    const id = t.dataset.toggle;
+    const p = S.posts[id] || {};
+    const m = S.media.find((x) => x.id === id) || {};
+    if (t.checked && !(p.configured && p.scoreId)) {
+      // 처음 켜는 게시물: 보낼 악보부터 고르게 함
+      t.checked = false;
+      openEditor(id, { enable: true });
+      toast("보낼 악보를 고르고 저장하면 켜져요");
+      return;
+    }
+    try {
+      await setDoc(doc(db, "posts", id), {
+        configured: true, enabled: t.checked,
+        keywords: p.keywords?.length ? p.keywords : S.settings.defaultKeywords || ["악보"],
+        scoreId: p.scoreId || null, followersOnly: !!p.followersOnly,
+        caption: (m.caption || p.caption || "").slice(0, 200), permalink: m.permalink || p.permalink || "",
+        mediaType: m.id ? kindLabel(m) : p.mediaType || "", updatedAt: serverTimestamp(),
+      }, { merge: true });
+      toast(t.checked ? "자동 DM을 켰어요" : "자동 DM을 껐어요");
+    } catch (e) { t.checked = !t.checked; toast("바꾸지 못했어요: " + e.message, true); }
+  }));
+};
+
+// ---------- 게시물 편집 서랍 ----------
+function openEditor(id, opts = {}) {
+  const m = S.media.find((x) => x.id === id) || { id };
+  const p = S.posts[id] || {};
+  const draft = {
+    enabled: opts.enable ? true : p.configured ? p.enabled !== false : true,
+    keywords: [...(p.configured && p.keywords?.length ? p.keywords : S.settings.defaultKeywords || ["악보"])],
+    scoreId: p.scoreId || "",
+    followersOnly: p.configured ? !!p.followersOnly : !!S.settings.defaultFollowersOnly,
+  };
+  const s = p.stats || {};
+  const img = m.thumbnail_url || (m.media_type !== "VIDEO" ? m.media_url : "");
+  const ov = $("#overlay");
+  const draw = () => {
+    ov.innerHTML = `
+    <div class="drawer-bg" data-close></div>
+    <aside class="drawer" role="dialog" aria-modal="true" aria-label="게시물 자동 DM 설정">
+      <header>${img ? `<img src="${esc(img)}" alt="">` : ""}<div><b>${kindLabel(m)}</b><div class="cap">${esc(m.caption || "캡션 없음")}</div>${m.permalink ? `<a href="${esc(m.permalink)}" target="_blank" rel="noopener" style="font-size:13px;color:var(--muted)">인스타그램에서 보기</a>` : ""}</div><button class="x" data-close aria-label="닫기">×</button></header>
+      <div class="content">
+        <div class="mini-stats num"><div><b>${n(s.matched)}</b><span>키워드 댓글</span></div><div><b>${n(s.delivered)}</b><span>악보 전달</span></div><div><b>${s.followAsked ? pct(s.converted, s.followAsked) : "–"}</b><span>팔로우 전환</span></div></div>
+        <div class="switch"><div class="t"><b>자동 DM 보내기</b><span>끄면 이 게시물 댓글에는 응답하지 않아요</span></div><label class="toggle"><input type="checkbox" id="edEnabled" ${draft.enabled ? "checked" : ""}><i></i></label></div>
+        <div ${draft.enabled ? "" : 'style="opacity:.45;pointer-events:none"'}>
+          <div class="field" style="margin-top:16px"><span class="lbl">반응할 키워드</span>
+            <div class="kw-box" id="kwBox">${draft.keywords.map((k, i) => `<span class="kw">${esc(k)}<button data-rm="${i}" aria-label="${esc(k)} 삭제">×</button></span>`).join("")}<input id="kwInput" placeholder="입력 후 Enter" aria-label="키워드 추가"></div>
+            <span class="hint">댓글에 이 단어가 들어 있으면 DM을 보내요. 띄어쓰기는 무시해요.</span></div>
+          <div class="field"><label for="edScore">보낼 악보</label>
+            <select class="input" id="edScore"><option value="">악보 없음 (정리 중 안내 보내기)</option>${S.scores.map((sc) => `<option value="${esc(sc.id)}" ${sc.id === draft.scoreId ? "selected" : ""}>${esc(sc.title)}${sc.instrument ? " · " + esc(sc.instrument) : ""}</option>`).join("")}</select>
+            <span class="hint">${S.scores.length ? "" : "아직 올린 악보가 없어요. "}<a href="#scores" data-goscores>악보 올리러 가기</a></span></div>
+          <div class="switch"><div class="t"><b>팔로워에게만 보내기</b><span>미팔로우면 팔로우를 부탁하고, 팔로우하면 보내요</span></div><label class="toggle"><input type="checkbox" id="edFollow" ${draft.followersOnly ? "checked" : ""}><i></i></label></div>
+        </div>
+      </div>
+      <footer>
+        ${p.configured ? '<button class="btn" id="edReset">설정 지우고 끄기</button>' : "<span></span>"}
+        <div class="row-actions"><button class="btn" data-close>취소</button><button class="btn primary" id="edSave">저장</button></div>
+      </footer>
+    </aside>`;
+    ov.querySelectorAll("[data-close]").forEach((b) => (b.onclick = close));
+    ov.querySelector("[data-goscores]").onclick = (e) => { e.preventDefault(); close(); go("scores"); };
+    $("#edEnabled").onchange = (e) => { draft.enabled = e.target.checked; draw(); };
+    $("#edFollow").onchange = (e) => (draft.followersOnly = e.target.checked);
+    $("#edScore").onchange = (e) => (draft.scoreId = e.target.value);
+    ov.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = () => { draft.keywords.splice(+b.dataset.rm, 1); draw(); $("#kwInput").focus(); }));
+    const kwIn = $("#kwInput");
+    const addKw = () => {
+      const v = kwIn.value.trim().replace(/,$/, "");
+      if (v && !draft.keywords.includes(v)) draft.keywords.push(v);
+      kwIn.value = "";
+      draw();
+      $("#kwInput").focus();
+    };
+    kwIn.onkeydown = (e) => {
+      if (e.isComposing) return;
+      if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addKw(); }
+      if (e.key === "Backspace" && !kwIn.value && draft.keywords.length) { draft.keywords.pop(); draw(); $("#kwInput").focus(); }
+    };
+    kwIn.onblur = () => { if (kwIn.value.trim()) addKw(); };
+    $("#edSave").onclick = async () => {
+      if (draft.enabled && !draft.keywords.length) return toast("키워드를 하나 이상 넣어 주세요", true);
+      try {
+        await setDoc(doc(db, "posts", id), {
+          configured: true, enabled: draft.enabled, keywords: draft.keywords, scoreId: draft.scoreId || null,
+          followersOnly: draft.followersOnly, caption: (m.caption || "").slice(0, 200), permalink: m.permalink || "",
+          mediaType: kindLabel(m), updatedAt: serverTimestamp(),
+        }, { merge: true });
+        toast("저장했어요");
+        close();
+      } catch (e) { toast("저장하지 못했어요: " + e.message, true); }
+    };
+    $("#edReset") && ($("#edReset").onclick = async () => {
+      await setDoc(doc(db, "posts", id), { configured: false, updatedAt: serverTimestamp() }, { merge: true });
+      toast("설정을 지우고 껐어요");
+      close();
+    });
+  };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  function close() { ov.innerHTML = ""; document.removeEventListener("keydown", onKey); }
+  document.addEventListener("keydown", onKey);
+  draw();
+  ov.querySelector(".drawer .x").focus();
+}
+
+// ---------- 카드·미리보기용 표지 만들기 (1200×630) ----------
+// 악보 파일 → 페이지별 캔버스 (최대 10쪽, 가로 1600px)
+async function renderPages(blob, isPdf, max = 10) {
+  const out = [];
+  const W = 1600;
+  if (isPdf) {
+    const pdfjs = await import("/vendor/pdfjs/pdf.min.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.mjs";
+    const pdf = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    for (let i = 1; i <= Math.min(pdf.numPages, max); i++) {
+      const page = await pdf.getPage(i);
+      const base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: W / base.width });
+      const c = document.createElement("canvas");
+      c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      out.push(c);
+    }
+    return out;
+  }
+  const bmp = await createImageBitmap(blob);
+  const scale = Math.min(1, W / bmp.width);
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(bmp, 0, 0, c.width, c.height);
+  out.push(c);
+  return out;
+}
+
+const toJpeg = (canvas, q = 0.86) => new Promise((r) => canvas.toBlob(r, "image/jpeg", q));
+
+function wrapLines(ctx, text, maxW, maxLines) {
+  const words = String(text).split(/(\s+)/);
+  const lines = [];
+  let cur = "";
+  const push = (t) => { lines.push(t.trim()); };
+  for (const w of words) {
+    const test = cur + w;
+    if (ctx.measureText(test).width > maxW && cur.trim()) { push(cur); cur = w.trimStart(); }
+    else cur = test;
+    // 띄어쓰기 없는 긴 제목은 글자 단위로 자름
+    while (ctx.measureText(cur).width > maxW && cur.length > 1) {
+      let i = cur.length - 1;
+      while (i > 1 && ctx.measureText(cur.slice(0, i)).width > maxW) i--;
+      push(cur.slice(0, i)); cur = cur.slice(i);
+    }
+  }
+  if (cur.trim()) push(cur);
+  if (lines.length > maxLines) { lines.length = maxLines; lines[maxLines - 1] = lines[maxLines - 1].replace(/.$/, "…"); }
+  return lines;
+}
+
+async function makeCover(page, meta) {
+  const FONT = '"Pretendard Variable", Pretendard, sans-serif';
+  await Promise.all(["800 80px", "700 30px", "500 32px"].map((f) => document.fonts.load(`${f} ${FONT}`).catch(() => {})));
+  const W = 1200, H = 630;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#18202b"; ctx.fillRect(0, 0, W, H);
+
+  // 오른쪽: 악보 첫 페이지 (보면대 위 종이처럼)
+  const px = 700, py = 70, pw = 420;
+  const ph = Math.round(page.height * (pw / page.width));
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,.55)"; ctx.shadowBlur = 40; ctx.shadowOffsetY = 20;
+  ctx.fillStyle = "#fff"; ctx.fillRect(px, py, pw, Math.max(ph, H));
+  ctx.restore();
+  ctx.drawImage(page, px, py, pw, ph);
+
+  // 왼쪽: 학원 이름 · 곡 제목 · 악기 · 버튼
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "#9aa8b8"; ctx.font = `700 30px ${FONT}`;
+  ctx.fillText("주니퍼 실용음악학원", 70, 120);
+  // 한 줄에 들어가면 크게, 길면 두 줄로 작게
+  let size = 92;
+  ctx.font = `800 ${size}px ${FONT}`;
+  let lines = [String(meta.title)];
+  if (ctx.measureText(meta.title).width > 570) {
+    size = 64;
+    ctx.font = `800 ${size}px ${FONT}`;
+    lines = wrapLines(ctx, meta.title, 570, 2);
+  }
+  ctx.fillStyle = "#e9edf2";
+  const lh = Math.round(size * 1.18);
+  let y = 150 + size;
+  for (const l of lines) { ctx.fillText(l, 66, y); y += lh; }
+  y += 22 - lh + 40;
+  const sub = [meta.instrument, meta.artist].filter(Boolean).join(" · ");
+  if (sub) {
+    ctx.font = `500 32px ${FONT}`;
+    ctx.fillStyle = "#d9a441";
+    ctx.fillText(wrapLines(ctx, sub, 570, 1)[0], 70, y);
+  }
+  ctx.fillStyle = "#d9a441";
+  ctx.beginPath(); ctx.roundRect(70, 480, 250, 68, 34); ctx.fill();
+  ctx.fillStyle = "#1a1408"; ctx.font = `700 30px ${FONT}`; ctx.textAlign = "center";
+  ctx.fillText("악보 열기", 195, 525);
+  return await new Promise((r) => c.toBlob(r, "image/jpeg", 0.88));
+}
+
+// 악보 사진(DM 첨부용)과 표지(카드·미리보기용)를 만들어 올림
+async function buildScoreImages(scoreId, blob, isPdf, meta, onStep) {
+  const pages = await renderPages(blob, isPdf);
+  for (let i = 0; i < pages.length; i++) {
+    onStep?.(`사진 ${i + 1}/${pages.length}`);
+    await uploadBytesResumable(sref(storage, `scores/${scoreId}/page-${i + 1}.jpg`), await toJpeg(pages[i]), { contentType: "image/jpeg" });
+  }
+  onStep?.("표지");
+  const cover = await makeCover(pages[0], meta);
+  const coverPath = `scores/${scoreId}/cover.jpg`;
+  await uploadBytesResumable(sref(storage, coverPath), cover, { contentType: "image/jpeg" });
+  const now = Date.now();
+  return { pageCount: pages.length, pagesVersion: now, coverPath, coverVersion: now };
+}
+
+// ---------- 화면: 악보 ----------
+VIEWS.scores = () => {
+  const used = {};
+  Object.entries(S.posts).forEach(([id, p]) => { if (p.configured && p.scoreId) (used[p.scoreId] ||= []).push(id); });
+  return `
+  <div class="page-head"><div><h2>악보</h2><p>올린 악보는 DM 링크로 열리는 악보 페이지가 돼요.</p></div></div>
+  <div class="settings-grid">
+    <section class="panel">
+      <h3>새 악보 올리기</h3>
+      <p class="sub">PDF나 이미지 파일을 올릴 수 있어요. (최대 30MB)</p>
+      <div class="field"><label for="scTitle">곡 제목</label><input class="input" id="scTitle" placeholder="예: Back in Black"></div>
+      <div class="field"><label for="scArtist">아티스트·설명</label><input class="input" id="scArtist" placeholder="예: AC/DC · 드럼 카피 1절"></div>
+      <div class="field"><label for="scInst">악기</label>
+        <select class="input" id="scInst"><option>드럼</option><option>기타</option><option>베이스</option><option>피아노</option><option>보컬</option><option>기타 악기</option></select></div>
+      <label class="upload" for="scFile"><input type="file" id="scFile" accept="application/pdf,image/*"><b id="scFileName">파일 선택</b><br><span>눌러서 악보 파일을 고르세요</span></label>
+      <div class="progress" id="scProg" hidden><i></i></div>
+      <div style="margin-top:14px"><button class="btn primary" id="scSave">올리기</button></div>
+    </section>
+    <section>
+      ${S.scores.length ? `<div class="score-list">${S.scores.map((sc) => `
+        <div class="score-row">${sc.coverPath ? `<img class="cover" src="${SITE}/f/${esc(sc.id)}?cover=1&v=${esc(sc.coverVersion || 1)}" alt="" loading="lazy">` : '<span class="cover none">표지 없음</span>'}<div class="t"><b>${esc(sc.title)}</b> <span>${esc([sc.instrument, sc.artist].filter(Boolean).join(" · "))}</span>
+          <div class="use">${sc.pageCount ? `DM 사진 ${sc.pageCount}장` : '<b style="color:var(--bad)">DM 사진 없음</b>'} · ${used[sc.id] ? `연결된 게시물 ${used[sc.id].length}개` : "연결된 게시물 없음"} · 열람 <span class="num">${n(sc.views)}</span> · 다운로드 <span class="num">${n(sc.downloads)}</span></div></div>
+          <div class="row-actions"><a class="btn small" href="${SITE}/s/${esc(sc.id)}" target="_blank" rel="noopener">페이지 보기</a><button class="btn small" data-copy="${esc(sc.id)}">링크 복사</button><button class="btn small ${sc.pageCount ? "" : "primary"}" data-cover="${esc(sc.id)}">${sc.pageCount ? "사진·표지 다시 만들기" : "사진·표지 만들기"}</button><button class="btn small danger" data-del="${esc(sc.id)}">삭제</button></div></div>`).join("")}</div>`
+      : '<div class="panel empty"><b>아직 올린 악보가 없어요</b>왼쪽에서 첫 악보를 올려 보세요.</div>'}
+    </section>
+  </div>`;
+};
+
+BIND.scores = () => {
+  const f = $("#scFile");
+  f.onchange = () => ($("#scFileName").textContent = f.files[0] ? f.files[0].name : "파일 선택");
+  $("#scSave").onclick = async () => {
+    const title = $("#scTitle").value.trim();
+    const file = f.files[0];
+    if (!title) return toast("곡 제목을 입력해 주세요", true);
+    if (!file) return toast("악보 파일을 골라 주세요", true);
+    if (file.size > 30 * 1024 * 1024) return toast("30MB 이하 파일만 올릴 수 있어요", true);
+    const btn = $("#scSave");
+    btn.disabled = true;
+    const prog = $("#scProg");
+    prog.hidden = false;
+    try {
+      const newRef = doc(collection(db, "scores"));
+      const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const path = `scores/${newRef.id}/score.${ext}`;
+      const task = uploadBytesResumable(sref(storage, path), file, { contentType: file.type || "application/pdf" });
+      await new Promise((res, rej) => task.on("state_changed", (s) => (prog.firstElementChild.style.width = (s.bytesTransferred / s.totalBytes) * 100 + "%"), rej, res));
+      const url = await getDownloadURL(task.snapshot.ref);
+      const meta = { title, artist: $("#scArtist").value.trim(), instrument: $("#scInst").value };
+      let images = {};
+      try {
+        images = await buildScoreImages(newRef.id, file, (file.type || "").includes("pdf") || ext === "pdf", meta, (t) => (btn.textContent = `만드는 중… ${t}`));
+      } catch (e) { console.warn("악보 사진 만들기 실패", e); }
+      await setDoc(newRef, {
+        ...meta, fileUrl: url, filePath: path, fileType: file.type || "", fileName: file.name,
+        pageCount: 0, coverPath: null, ...images, views: 0, downloads: 0, createdAt: serverTimestamp(),
+      });
+      toast(images.pageCount ? `악보를 올렸어요 (사진 ${images.pageCount}장)` : "악보를 올렸어요. 사진은 '사진·표지 만들기'로 다시 시도하세요");
+    } catch (e) {
+      toast("올리지 못했어요: " + e.message, true);
+      btn.disabled = false;
+      prog.hidden = true;
+    }
+  };
+  document.querySelectorAll("[data-cover]").forEach((b) => (b.onclick = async () => {
+    const sc = S.scores.find((x) => x.id === b.dataset.cover);
+    b.disabled = true;
+    b.textContent = "만드는 중…";
+    try {
+      const res = await fetch(`/f/${sc.id}?raw=1`);
+      if (!res.ok) throw new Error("파일을 불러오지 못했어요");
+      const blob = await res.blob();
+      const isPdf = (sc.fileType || "").includes("pdf") || /\.pdf$/i.test(sc.filePath || "");
+      const images = await buildScoreImages(sc.id, blob, isPdf, sc, (t) => (b.textContent = `만드는 중… ${t}`));
+      await updateDoc(doc(db, "scores", sc.id), images);
+      toast(`사진 ${images.pageCount}장과 표지를 만들었어요`);
+    } catch (e) {
+      toast("만들지 못했어요: " + e.message, true);
+      b.disabled = false;
+      b.textContent = "사진·표지 만들기";
+    }
+  }));
+  document.querySelectorAll("[data-copy]").forEach((b) => (b.onclick = async () => {
+    await navigator.clipboard.writeText(`${SITE}/s/${b.dataset.copy}`);
+    toast("링크를 복사했어요");
+  }));
+  document.querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
+    const sc = S.scores.find((x) => x.id === b.dataset.del);
+    const usedBy = Object.values(S.posts).filter((p) => p.configured && p.scoreId === sc.id).length;
+    if (!confirm(`「${sc.title}」 악보를 삭제할까요?${usedBy ? `\n연결된 게시물 ${usedBy}개는 '정리 중 안내'를 보내게 돼요.` : ""}\n이미 보낸 링크도 더 이상 열리지 않아요.`)) return;
+    try {
+      if (sc.filePath) await deleteObject(sref(storage, sc.filePath)).catch(() => {});
+      await deleteDoc(doc(db, "scores", sc.id));
+      toast("삭제했어요");
+    } catch (e) { toast("삭제하지 못했어요: " + e.message, true); }
+  }));
+};
+
+// ---------- 화면: 댓글 기록 ----------
+const COMMENT_ACTIONS = {
+  dm_sent: ["DM 보냄", "on"], no_keyword: ["키워드 없음", "off"], off: ["자동 발송 꺼짐", "off"],
+  dm_failed: ["DM 실패", "bad"], processing: ["처리 중", "brass"],
+};
+VIEWS.comments = () => {
+  const f = S.commentFilter;
+  const list = S.comments.filter((c) => f === "all" || (f === "matched" && c.matched) || (f === "sent" && c.action === "dm_sent") || (f === "failed" && c.action === "dm_failed"));
+  return `
+  <div class="page-head"><div><h2>댓글 기록</h2><p>내 계정 댓글을 뺀 최근 댓글 300개예요. 실시간으로 추가돼요.</p></div></div>
+  <div class="toolbar"><div class="seg" role="group" aria-label="보기">
+    ${[["all", `전체 ${S.comments.length}`], ["matched", "키워드 포함"], ["sent", "DM 보냄"], ["failed", "실패"]].map(([k, l]) => `<button data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join("")}
+  </div></div>
+  ${list.length ? `<div class="table-wrap"><table><thead><tr><th>시간</th><th>사용자</th><th>댓글</th><th>게시물</th><th>결과</th></tr></thead><tbody>
+  ${list.map((c) => { const [l, cls] = COMMENT_ACTIONS[c.action] || [c.action, "off"]; return `<tr><td class="time">${when(c.createdAt)}</td><td class="user">${esc(c.username || "?")}</td><td class="text">${esc(c.text)}${c.publicReply === "failed" ? '<span class="err">공개 답글 실패</span>' : ""}</td><td class="post">${esc(caption(c.mediaId))}</td><td><span class="chip ${cls}">${l}</span>${c.dmError ? `<span class="err">${esc(c.dmError)}</span>` : ""}</td></tr>`; }).join("")}
+  </tbody></table></div>` : '<div class="panel empty"><b>표시할 댓글이 없어요</b>공개 게시물에 댓글이 달리면 여기에 쌓여요.</div>'}`;
+};
+BIND.comments = () => document.querySelectorAll(".seg [data-f]").forEach((b) => (b.onclick = () => { S.commentFilter = b.dataset.f; render(); }));
+
+// ---------- 화면: DM 기록 ----------
+const DM_TYPES = { opening: "첫 안내 (버튼)", follow_ask: "팔로우 요청", delivery: "악보 전달", no_score: "정리 중 안내" };
+VIEWS.dms = () => {
+  const f = S.dmFilter;
+  const list = S.dms.filter((d) => f === "all" || d.type === f || (f === "failed" && d.status === "failed"));
+  return `
+  <div class="page-head"><div><h2>DM 기록</h2><p>자동으로 보낸 최근 DM 300개예요.</p></div></div>
+  <div class="toolbar"><div class="seg" role="group" aria-label="보기">
+    ${[["all", "전체"], ["opening", "첫 안내"], ["follow_ask", "팔로우 요청"], ["delivery", "악보 전달"], ["failed", "실패"]].map(([k, l]) => `<button data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join("")}
+  </div></div>
+  ${list.length ? `<div class="table-wrap"><table><thead><tr><th>시간</th><th>받는 사람</th><th>종류</th><th>게시물 · 악보</th><th>팔로우</th><th>상태</th></tr></thead><tbody>
+  ${list.map((d) => `<tr><td class="time">${when(d.createdAt)}</td><td class="user">${esc(d.username || "?")}</td><td>${DM_TYPES[d.type] || esc(d.type)}${d.type === "opening" && d.usedButton === false ? '<span class="err" style="color:var(--faint)">버튼 없이 보냄</span>' : ""}</td><td class="post">${esc(caption(d.mediaId))}${d.scoreId ? `<br>♪ ${esc(scoreTitle(d.scoreId) || "삭제된 악보")}` : ""}</td><td>${d.following === true ? "팔로우 중" : d.following === false ? "안 함" : "–"}</td><td>${d.status === "sent" ? '<span class="chip on">보냄</span>' : `<span class="chip bad">실패</span><span class="err">${esc(d.error || "")}</span>`}</td></tr>`).join("")}
+  </tbody></table></div>` : '<div class="panel empty"><b>표시할 DM이 없어요</b>키워드 댓글이 달리면 자동으로 보낸 DM이 여기에 쌓여요.</div>'}`;
+};
+BIND.dms = () => document.querySelectorAll(".seg [data-f]").forEach((b) => (b.onclick = () => { S.dmFilter = b.dataset.f; render(); }));
+
+// ---------- 화면: 설정 ----------
+const MSG_FIELDS = [
+  ["msgOpening", "첫 안내 DM", "댓글 단 사람에게 처음 보내는 메시지예요. [버튼]이 함께 붙어요.", "buttonLabel"],
+  ["msgFollowAsk", "팔로우 요청 DM", "팔로워 전용 게시물에서, 팔로우하지 않은 사람에게 보내요.", "followButtonLabel"],
+  ["msgDelivery", "악보 전달 DM", "이 글 다음에 악보 사진·PDF가 따라가요. {link} 줄은 사진·PDF·카드를 하나도 못 보낼 때만 링크로 대신 들어가요.", null],
+  ["msgNoScore", "악보 미연결 안내", "게시물에 악보를 연결하지 않았을 때 보내요.", null],
+];
+const SAMPLE = { username: "drummer_kim", title: "「Back in Black」 ", account: "junyfore_yj", link: "https://insta---dm.web.app/s/abc123" };
+const fillT = (t) => String(t || "").replace(/\{(\w+)\}/g, (m, k) => SAMPLE[k] ?? "");
+
+VIEWS.settings = () => {
+  const s = S.settings;
+  const st = S.status;
+  const fields = st?.subscribedFields || [];
+  return `
+  <div class="page-head"><div><h2>설정</h2><p>모든 게시물에 공통으로 적용되는 규칙과 DM 문구예요.</p></div><button class="btn primary" id="setSave">설정 저장</button></div>
+  <div class="settings-grid">
+    <div class="stack">
+      <section class="panel">
+        <h3>기본 규칙</h3>
+        <p class="sub">게시물에서 따로 설정하지 않으면 이 규칙을 따라요.</p>
+        <div class="field"><label for="setMode">자동 DM을 켜지 않은 게시물</label>
+          <select class="input" id="setMode"><option value="ignore" ${s.unconfiguredMode !== "default" ? "selected" : ""}>DM 보내지 않기 (추천)</option><option value="default" ${s.unconfiguredMode === "default" ? "selected" : ""}>기본 키워드로 DM 보내기</option></select></div>
+        <div class="field"><label for="setKw">기본 키워드</label><input class="input" id="setKw" value="${esc((s.defaultKeywords || []).join(", "))}"><span class="hint">쉼표로 여러 개를 넣을 수 있어요.</span></div>
+        <div class="switch"><div class="t"><b>기본으로 팔로워에게만 보내기</b><span>설정 안 한 게시물에 적용돼요</span></div><label class="toggle"><input type="checkbox" id="setFollow" ${s.defaultFollowersOnly ? "checked" : ""}><i></i></label></div>
+        <div class="switch"><div class="t"><b>댓글에 공개 답글 달기</b><span>"DM 보냈어요" 같은 답글이 댓글 아래에 달려요</span></div><label class="toggle"><input type="checkbox" id="setReply" ${s.publicReplyEnabled !== false ? "checked" : ""}><i></i></label></div>
+        <div class="field" style="margin-top:14px"><label for="setReplies">공개 답글 문구</label><textarea class="input" id="setReplies">${esc((s.publicReplies || []).join("\n"))}</textarea><span class="hint">한 줄에 하나씩. 매번 무작위로 골라서 같은 답글 반복을 피해요.</span></div>
+      </section>
+      <section class="panel">
+        <h3>악보 보내는 방식</h3>
+        <p class="sub">악보 전달 DM에 무엇을 함께 보낼지 골라요. 인스타 안에서는 사진이 가장 저장하기 쉬워요.</p>
+        <div class="switch"><div class="t"><b>악보 사진</b><span>페이지별 사진 (최대 10장). DM에서 길게 눌러 바로 저장해요</span></div><label class="toggle"><input type="checkbox" id="setImg" ${s.sendImages !== false ? "checked" : ""}><i></i></label></div>
+        <div class="switch"><div class="t"><b>PDF 파일</b><span>PDF로 올린 악보만. 파일로 보관하거나 인쇄할 때 좋아요</span></div><label class="toggle"><input type="checkbox" id="setPdf" ${s.sendPdf !== false ? "checked" : ""}><i></i></label></div>
+        <div class="switch"><div class="t"><b>악보 페이지 카드</b><span>표지와 [악보 열기] 버튼. 레슨 상담 버튼이 있는 페이지로 이어져요</span></div><label class="toggle"><input type="checkbox" id="setCard" ${s.sendCard === true ? "checked" : ""}><i></i></label></div>
+      </section>
+      <section class="panel">
+        <h3>관리자</h3>
+        <p class="sub">여기 등록된 Google 계정만 이 페이지에 들어올 수 있어요.</p>
+        <ul class="health">
+          <li><span>${esc(OWNER)}</span><span class="chip off">기본 관리자</span></li>
+          ${S.admins.map((e) => `<li><span>${esc(e)}${e === S.user?.email ? ' <span class="k">(나)</span>' : ""}</span><button class="btn small danger" data-rmadmin="${esc(e)}">빼기</button></li>`).join("")}
+        </ul>
+        <div class="row-actions" style="margin-top:12px;flex-wrap:nowrap">
+          <input class="input" id="adminEmail" type="email" placeholder="추가할 Gmail 주소" autocomplete="off" aria-label="추가할 관리자 이메일">
+          <button class="btn" id="addAdmin">추가</button>
+        </div>
+      </section>
+      <section class="panel">
+        <h3>연결 상태</h3>
+        <p class="sub">댓글 알림이 끊기면 DM이 나가지 않아요.</p>
+        <ul class="health">
+          <li><span class="k">댓글 알림</span>${fields.includes("comments") ? '<span class="chip on">받는 중</span>' : '<span class="chip bad">끊김</span>'}</li>
+          <li><span class="k">DM 알림</span>${fields.includes("messages") ? '<span class="chip on">받는 중</span>' : '<span class="chip bad">끊김</span>'}</li>
+        </ul>
+        <div class="row-actions" style="margin-top:12px"><button class="btn" id="resub">알림 다시 연결</button><button class="btn" id="restat">상태 새로고침</button></div>
+      </section>
+      <section class="panel">
+        <h3>데이터 삭제 요청</h3>
+        <p class="sub">DM으로 "데이터 삭제"를 보낸 사람이에요. 해당 기록을 지우고 처리 완료로 표시하세요.</p>
+        ${S.deletions.length ? `<ul class="health">${S.deletions.map((d) => `<li><span>${esc(d.username || d.igsid)} <span class="k">· ${when(d.createdAt)}</span></span>${d.done ? '<span class="chip off">처리 완료</span>' : `<button class="btn small" data-purge="${esc(d.id)}" data-igsid="${esc(d.igsid)}">기록 지우고 완료</button>`}</li>`).join("")}</ul>` : '<p class="sub" style="margin:0">요청이 없어요.</p>'}
+      </section>
+    </div>
+    <section class="panel">
+      <h3>DM 문구</h3>
+      <p class="sub">아래 이름표를 누르면 커서 위치에 들어가요. 실제로 보낼 때 알맞은 값으로 바뀌어요.</p>
+      ${MSG_FIELDS.map(([key, label, hint, btnKey]) => `
+        <div class="field"><label for="m_${key}">${label}</label>
+          <textarea class="input" id="m_${key}" data-msg="${key}">${esc(s[key])}</textarea>
+          <div class="ph">${["username", "title", "account", "link"].filter((k) => key === "msgDelivery" || k !== "link").map((k) => `<button type="button" data-ins="${k}" data-to="m_${key}">{${k}}</button>`).join("")}</div>
+          <span class="hint">${hint}</span>
+          ${btnKey ? `<label class="lbl" for="b_${btnKey}" style="margin-top:6px">버튼 글자 <span class="hint">(20자 이내)</span></label><input class="input" id="b_${btnKey}" data-btn="${btnKey}" maxlength="20" value="${esc(s[btnKey])}">` : ""}
+          <div class="preview" data-prev="${key}">${esc(fillT(s[key]))}${btnKey ? `<br><span class="qr">${esc(s[btnKey])}</span>` : ""}</div>
+        </div>`).join("")}
+      <p class="hint" style="color:var(--faint);font-size:13px">{username} 사용자 이름 · {title} 악보 제목 · {account} 내 계정 · {link} 악보 페이지 주소</p>
+    </section>
+  </div>`;
+};
+
+BIND.settings = () => {
+  const upd = (key) => {
+    const ta = document.getElementById("m_" + key);
+    const def = MSG_FIELDS.find((f) => f[0] === key);
+    const btn = def[3] ? document.getElementById("b_" + def[3]).value : null;
+    document.querySelector(`[data-prev="${key}"]`).innerHTML = esc(fillT(ta.value)) + (btn !== null ? `<br><span class="qr">${esc(btn)}</span>` : "");
+  };
+  document.querySelectorAll("[data-msg]").forEach((ta) => (ta.oninput = () => upd(ta.dataset.msg)));
+  document.querySelectorAll("[data-btn]").forEach((inp) => (inp.oninput = () => upd(MSG_FIELDS.find((f) => f[3] === inp.dataset.btn)[0])));
+  document.querySelectorAll("[data-ins]").forEach((b) => (b.onclick = () => {
+    const ta = document.getElementById(b.dataset.to);
+    const t = `{${b.dataset.ins}}`;
+    const s0 = ta.selectionStart ?? ta.value.length, e0 = ta.selectionEnd ?? ta.value.length;
+    ta.value = ta.value.slice(0, s0) + t + ta.value.slice(e0);
+    ta.focus();
+    ta.setSelectionRange(s0 + t.length, s0 + t.length);
+    upd(ta.dataset.msg);
+  }));
+  $("#setSave").onclick = async () => {
+    const kw = $("#setKw").value.split(",").map((x) => x.trim()).filter(Boolean);
+    if (!kw.length) return toast("기본 키워드를 하나 이상 넣어 주세요", true);
+    const data = {
+      unconfiguredMode: $("#setMode").value,
+      defaultKeywords: kw,
+      defaultFollowersOnly: $("#setFollow").checked,
+      publicReplyEnabled: $("#setReply").checked,
+      publicReplies: $("#setReplies").value.split("\n").map((x) => x.trim()).filter(Boolean),
+      sendImages: $("#setImg").checked,
+      sendPdf: $("#setPdf").checked,
+      sendCard: $("#setCard").checked,
+      updatedAt: serverTimestamp(),
+    };
+    for (const [key] of MSG_FIELDS) data[key] = document.getElementById("m_" + key).value;
+    document.querySelectorAll("[data-btn]").forEach((i) => (data[i.dataset.btn] = i.value.trim() || DEFAULTS[i.dataset.btn]));
+    if (!data.msgDelivery.includes("{link}")) return toast("악보 전달 DM에 {link}가 있어야 링크가 나가요", true);
+    try {
+      await setDoc(doc(db, "config/settings"), data, { merge: true });
+      toast("설정을 저장했어요");
+    } catch (e) { toast("저장하지 못했어요: " + e.message, true); }
+  };
+  $("#resub").onclick = async () => {
+    try { await adminFn({ action: "resubscribe" }); toast("알림을 다시 연결했어요"); loadStatus(); }
+    catch (e) { toast("다시 연결하지 못했어요: " + e.message, true); }
+  };
+  $("#restat").onclick = () => { loadStatus(); toast("상태를 새로 불러왔어요"); };
+  const saveAdmins = (list) => setDoc(doc(db, "config/admins"), { emails: list, updatedAt: serverTimestamp() });
+  $("#addAdmin").onclick = async () => {
+    const e = $("#adminEmail").value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return toast("이메일 주소를 확인해 주세요", true);
+    if (e === OWNER || S.admins.includes(e)) return toast("이미 등록된 이메일이에요", true);
+    try { await saveAdmins([...S.admins, e]); toast(`${e} 계정을 관리자로 추가했어요`); }
+    catch (err) { toast("추가하지 못했어요: " + err.message, true); }
+  };
+  $("#adminEmail").onkeydown = (ev) => { if (ev.key === "Enter" && !ev.isComposing) $("#addAdmin").click(); };
+  document.querySelectorAll("[data-rmadmin]").forEach((b) => (b.onclick = async () => {
+    const e = b.dataset.rmadmin;
+    if (!confirm(`${e} 계정을 관리자에서 뺄까요?${e === S.user?.email ? "\n본인 계정이라 바로 접속이 끊겨요." : ""}`)) return;
+    try { await saveAdmins(S.admins.filter((x) => x !== e)); toast("관리자에서 뺐어요"); }
+    catch (err) { toast("빼지 못했어요: " + err.message, true); }
+  }));
+  document.querySelectorAll("[data-purge]").forEach((b) => (b.onclick = async () => {
+    const igsid = b.dataset.igsid;
+    if (!confirm("이 사람의 댓글·DM·요청 기록을 모두 지울까요?")) return;
+    try {
+      const jobs = [];
+      for (const col of ["comments", "dms"]) {
+        const field = col === "comments" ? "igsid" : "igsid";
+        const qs = await getDocs(query(collection(db, col), where(field, "==", igsid)));
+        qs.forEach((d) => jobs.push(deleteDoc(d.ref)));
+      }
+      jobs.push(deleteDoc(doc(db, "people", igsid)).catch(() => {}));
+      await Promise.all(jobs);
+      await updateDoc(doc(db, "deletionRequests", b.dataset.purge), { done: true, doneAt: serverTimestamp() });
+      toast("기록을 지웠어요. DM으로 처리 완료를 알려 주세요.");
+    } catch (e) { toast("지우지 못했어요: " + e.message, true); }
+  }));
+};
+
+boot();
+</script>
+</body>
+</html>

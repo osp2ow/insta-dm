@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 관리자 = 기본 관리자 + 설정 화면에서 추가한 구글 이메일 (config/admins.emails)
+    function adminsPath() {
+      return /databases/$(database)/documents/config/admins;
+    }
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && (request.auth.token.email == 'osp2ow@gmail.com'
+            || (exists(adminsPath())
+                && request.auth.token.email.lower() in get(adminsPath()).data.emails));
+    }
+
+    // 악보 정보: 악보 페이지에서 누구나 한 곡씩 볼 수 있음 (목록 조회는 관리자만)
+    match /scores/{id} {
+      allow get: if true;
+      allow list, write: if isAdmin();
+    }
+
+    // 공개 페이지용 계정 정보 (서버만 기록)
+    match /public/{id} {
+      allow read: if true;
+    }
+
+    // 관리자 명단: 이메일 목록만 담을 수 있음
+    match /config/admins {
+      allow read: if isAdmin();
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['emails', 'updatedAt'])
+        && request.resource.data.emails is list
+        && request.resource.data.emails.size() <= 20;
+    }
+
+    match /config/{id}           { allow read, write: if isAdmin() && id != 'admins'; }
+    match /posts/{id}            { allow read, write: if isAdmin(); }
+    match /comments/{id}         { allow read, delete: if isAdmin(); }
+    match /dms/{id}              { allow read, delete: if isAdmin(); }
+    match /people/{id}           { allow read, delete: if isAdmin(); }
+    match /stats/{id}            { allow read: if isAdmin(); }
+    match /daily/{id}            { allow read: if isAdmin(); }
+    match /deletionRequests/{id} { allow read, update: if isAdmin(); }
+
+    // 토큰 등 시스템 정보는 서버 전용
+    match /system/{id}           { allow read, write: if false; }
+  }
+}
