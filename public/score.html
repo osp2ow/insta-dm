@@ -315,6 +315,22 @@ async function main() {
   saveBtn.onclick = openSheet;
 
   try {
+    // 이미지 여러 장으로 올린 악보: 페이지 사진을 순서대로 보여 줌
+    if (score.fileType === "images" && score.pageCount) {
+      sheet.innerHTML = "";
+      for (let i = 1; i <= score.pageCount; i++) {
+        const r = await fetch(`/f/${id}?page=${i}&v=${encodeURIComponent(score.pagesVersion || 1)}`);
+        if (!r.ok) throw new Error("page " + i);
+        const jpg = await r.blob();
+        state.pages.push(jpg);
+        sheet.appendChild(pageImg(jpg, i));
+      }
+      state.fileBlob = state.pages[0];
+      if (score.pageCount > 1) document.getElementById("pages").textContent = `총 ${score.pageCount}쪽`;
+      saveBtn.disabled = false;
+      return;
+    }
+
     const res = await fetch(`/f/${id}`);
     if (!res.ok) throw new Error("file " + res.status);
     const blob = await res.blob();

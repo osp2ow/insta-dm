@@ -238,6 +238,18 @@ td .err { display: block; color: var(--bad); font-size: 12.5px; margin-top: 2px;
 .upload:hover { border-color: var(--brass); }
 .upload input { display: none; }
 .upload b { color: var(--ink); }
+.picked { margin-top: 10px; display: grid; gap: 6px; }
+.picked-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); }
+.picked-head button { border: 0; background: none; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 13px; padding: 0; }
+.pick { display: grid; grid-template-columns: 22px 44px 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); }
+.pick .no { font-weight: 700; font-size: 13px; color: var(--muted); text-align: center; }
+.pick img { width: 44px; height: 56px; object-fit: cover; object-position: top; border-radius: 3px; background: #fff; border: 1px solid var(--line); }
+.pick .nm { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick .nm span { display: block; color: var(--faint); font-size: 12px; }
+.pick .acts { display: flex; gap: 2px; }
+.pick .acts button { border: 1px solid var(--line); background: var(--surface); border-radius: 4px; width: 28px; height: 28px; cursor: pointer; font-size: 14px; line-height: 1; }
+.pick .acts button:disabled { opacity: .35; cursor: default; }
+.upload.drag { border-color: var(--brass); background: var(--brass-soft); }
 .progress { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; margin-top: 8px; }
 .progress i { display: block; height: 100%; background: var(--brass); width: 0; transition: width .2s; }
 
@@ -779,6 +791,13 @@ async function renderPages(blob, isPdf, max = 10) {
 
 const toJpeg = (canvas, q = 0.86) => new Promise((r) => canvas.toBlob(r, "image/jpeg", q));
 
+// 이미지 여러 장 → 페이지별 캔버스 (고른 순서대로)
+async function renderImageFiles(files) {
+  const out = [];
+  for (const f of files) out.push(...(await renderPages(f, false)));
+  return out;
+}
+
 function wrapLines(ctx, text, maxW, maxLines) {
   const words = String(text).split(/(\s+)/);
   const lines = [];
@@ -850,8 +869,8 @@ async function makeCover(page, meta) {
 }
 
 // 악보 사진(DM 첨부용)과 표지(카드·미리보기용)를 만들어 올림
-async function buildScoreImages(scoreId, blob, isPdf, meta, onStep) {
-  const pages = await renderPages(blob, isPdf);
+async function buildScoreImages(scoreId, blob, isPdf, meta, onStep, prebuilt) {
+  const pages = prebuilt || (await renderPages(blob, isPdf));
   for (let i = 0; i < pages.length; i++) {
     onStep?.(`사진 ${i + 1}/${pages.length}`);
     await uploadBytesResumable(sref(storage, `scores/${scoreId}/page-${i + 1}.jpg`), await toJpeg(pages[i]), { contentType: "image/jpeg" });
@@ -873,12 +892,13 @@ VIEWS.scores = () => {
   <div class="settings-grid">
     <section class="panel">
       <h3>새 악보 올리기</h3>
-      <p class="sub">PDF나 이미지 파일을 올릴 수 있어요. (최대 30MB)</p>
+      <p class="sub">PDF 파일 1개, 또는 악보 이미지를 페이지마다 1장씩 여러 장 올릴 수 있어요. (이미지는 최대 10장, 파일당 30MB)</p>
       <div class="field"><label for="scTitle">곡 제목</label><input class="input" id="scTitle" placeholder="예: Back in Black"></div>
       <div class="field"><label for="scArtist">아티스트·설명</label><input class="input" id="scArtist" placeholder="예: AC/DC · 드럼 카피 1절"></div>
       <div class="field"><label for="scInst">악기</label>
         <select class="input" id="scInst"><option>드럼</option><option>기타</option><option>베이스</option><option>피아노</option><option>보컬</option><option>기타 악기</option></select></div>
-      <label class="upload" for="scFile"><input type="file" id="scFile" accept="application/pdf,image/*"><b id="scFileName">파일 선택</b><br><span>눌러서 악보 파일을 고르세요</span></label>
+      <label class="upload" for="scFile" id="scDrop"><input type="file" id="scFile" accept="application/pdf,image/*" multiple><b>파일 선택</b><br><span>PDF 1개 또는 이미지 여러 장을 고르거나 여기로 끌어다 놓으세요</span></label>
+      <div id="scPicked"></div>
       <div class="progress" id="scProg" hidden><i></i></div>
       <div style="margin-top:14px"><button class="btn primary" id="scSave">올리기</button></div>
     </section>
@@ -886,45 +906,117 @@ VIEWS.scores = () => {
       ${S.scores.length ? `<div class="score-list">${S.scores.map((sc) => `
         <div class="score-row">${sc.pageCount ? `<img class="cover" src="${SITE}/f/${esc(sc.id)}?page=1&v=${esc(sc.pagesVersion || 1)}" alt="" loading="lazy">` : '<span class="cover none">사진 없음</span>'}<div class="t"><b>${esc(sc.title)}</b> <span>${esc([sc.instrument, sc.artist].filter(Boolean).join(" · "))}</span>
           <div class="use">${sc.pageCount ? `DM 사진 ${sc.pageCount}장` : '<b style="color:var(--bad)">DM 사진 없음 · 아래 버튼을 눌러 주세요</b>'} · ${used[sc.id] ? `연결된 게시물 ${used[sc.id].length}개` : "연결된 게시물 없음"} · 열람 <span class="num">${n(sc.views)}</span> · 다운로드 <span class="num">${n(sc.downloads)}</span></div></div>
-          <div class="row-actions"><a class="btn small" href="${SITE}/s/${esc(sc.id)}" target="_blank" rel="noopener">페이지 보기</a><button class="btn small" data-copy="${esc(sc.id)}">링크 복사</button>${sc.pageCount ? "" : `<button class="btn small primary" data-cover="${esc(sc.id)}">DM 사진 만들기</button>`}<button class="btn small danger" data-del="${esc(sc.id)}">삭제</button></div></div>`).join("")}</div>`
+          <div class="row-actions"><a class="btn small" href="${SITE}/s/${esc(sc.id)}" target="_blank" rel="noopener">페이지 보기</a><button class="btn small" data-copy="${esc(sc.id)}">링크 복사</button>${sc.pageCount || sc.fileType === "images" ? "" : `<button class="btn small primary" data-cover="${esc(sc.id)}">DM 사진 만들기</button>`}<button class="btn small danger" data-del="${esc(sc.id)}">삭제</button></div></div>`).join("")}</div>`
       : '<div class="panel empty"><b>아직 올린 악보가 없어요</b>왼쪽에서 첫 악보를 올려 보세요.</div>'}
     </section>
   </div>`;
 };
 
+// 고른 악보 파일 (PDF 1개 또는 이미지 여러 장) — 화면을 다시 그려도 유지
+const picked = { pdf: null, images: [] };
+const naturalSort = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+const MAX_PAGES = 10;
+const MAX_SIZE = 30 * 1024 * 1024;
+
+function addPicked(fileList) {
+  const files = [...fileList];
+  const pdfs = files.filter((x) => x.type === "application/pdf" || /\.pdf$/i.test(x.name));
+  const imgs = files.filter((x) => (x.type || "").startsWith("image/"));
+  const big = files.find((x) => x.size > MAX_SIZE);
+  if (big) return toast(`${big.name}: 30MB 이하 파일만 올릴 수 있어요`, true);
+  if (pdfs.length && (imgs.length || picked.images.length)) return toast("PDF와 이미지는 섞어서 올릴 수 없어요. 하나만 골라 주세요", true);
+  if (pdfs.length > 1) return toast("PDF는 1개만 올릴 수 있어요", true);
+  if (pdfs.length) { picked.pdf = pdfs[0]; picked.images = []; }
+  if (imgs.length) {
+    picked.pdf = null;
+    const merged = [...picked.images, ...imgs.sort(naturalSort)];
+    if (merged.length > MAX_PAGES) toast(`이미지는 최대 ${MAX_PAGES}장까지예요. 앞의 ${MAX_PAGES}장만 남겼어요`, true);
+    picked.images = merged.slice(0, MAX_PAGES);
+  }
+  if (!pdfs.length && !imgs.length) return toast("PDF나 이미지 파일만 올릴 수 있어요", true);
+  drawPicked();
+}
+
+function drawPicked() {
+  const box = $("#scPicked");
+  if (!box) return;
+  picked.images.forEach((f) => { if (!f._url) f._url = URL.createObjectURL(f); });
+  const kb = (n) => (n > 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + "MB" : Math.round(n / 1024) + "KB");
+  if (picked.pdf) {
+    box.innerHTML = `<div class="picked"><div class="picked-head"><span>PDF 1개</span><button data-clear>지우기</button></div>
+      <div class="pick" style="grid-template-columns:44px 1fr"><span class="cover none" style="width:44px;height:56px;display:grid;place-items:center;font-size:11px;border:1px solid var(--line);border-radius:3px">PDF</span><div class="nm">${esc(picked.pdf.name)}<span>${kb(picked.pdf.size)} · 페이지마다 DM 사진이 자동으로 만들어져요</span></div></div></div>`;
+  } else if (picked.images.length) {
+    box.innerHTML = `<div class="picked"><div class="picked-head"><span>이미지 ${picked.images.length}장 · 이 순서대로 DM에 보내져요</span><button data-clear>모두 지우기</button></div>
+      ${picked.images.map((f, i) => `<div class="pick"><span class="no">${i + 1}</span><img src="${f._url}" alt=""><div class="nm">${esc(f.name)}<span>${kb(f.size)}</span></div>
+        <div class="acts"><button data-mv="${i}" data-d="-1" aria-label="${i + 1}번 위로" ${i === 0 ? "disabled" : ""}>↑</button><button data-mv="${i}" data-d="1" aria-label="${i + 1}번 아래로" ${i === picked.images.length - 1 ? "disabled" : ""}>↓</button><button data-rmimg="${i}" aria-label="${i + 1}번 빼기">×</button></div></div>`).join("")}</div>`;
+  } else {
+    box.innerHTML = "";
+  }
+  box.querySelectorAll("[data-clear]").forEach((b) => (b.onclick = () => { picked.pdf = null; picked.images = []; drawPicked(); }));
+  box.querySelectorAll("[data-mv]").forEach((b) => (b.onclick = () => {
+    const i = +b.dataset.mv, j = i + +b.dataset.d;
+    [picked.images[i], picked.images[j]] = [picked.images[j], picked.images[i]];
+    drawPicked();
+  }));
+  box.querySelectorAll("[data-rmimg]").forEach((b) => (b.onclick = () => { picked.images.splice(+b.dataset.rmimg, 1); drawPicked(); }));
+}
+
 BIND.scores = () => {
   const f = $("#scFile");
-  f.onchange = () => ($("#scFileName").textContent = f.files[0] ? f.files[0].name : "파일 선택");
+  f.onchange = () => { addPicked(f.files); f.value = ""; };
+  const drop = $("#scDrop");
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("drag"); };
+  drop.ondragleave = () => drop.classList.remove("drag");
+  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("drag"); addPicked(e.dataTransfer.files); };
+  drawPicked();
+
   $("#scSave").onclick = async () => {
     const title = $("#scTitle").value.trim();
-    const file = f.files[0];
     if (!title) return toast("곡 제목을 입력해 주세요", true);
-    if (!file) return toast("악보 파일을 골라 주세요", true);
-    if (file.size > 30 * 1024 * 1024) return toast("30MB 이하 파일만 올릴 수 있어요", true);
+    if (!picked.pdf && !picked.images.length) return toast("악보 파일을 골라 주세요", true);
     const btn = $("#scSave");
     btn.disabled = true;
     const prog = $("#scProg");
     prog.hidden = false;
+    const setProg = (r) => (prog.firstElementChild.style.width = Math.round(r * 100) + "%");
+    const meta = { title, artist: $("#scArtist").value.trim(), instrument: $("#scInst").value };
     try {
       const newRef = doc(collection(db, "scores"));
-      const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const path = `scores/${newRef.id}/score.${ext}`;
-      const task = uploadBytesResumable(sref(storage, path), file, { contentType: file.type || "application/pdf" });
-      await new Promise((res, rej) => task.on("state_changed", (s) => (prog.firstElementChild.style.width = (s.bytesTransferred / s.totalBytes) * 100 + "%"), rej, res));
-      const url = await getDownloadURL(task.snapshot.ref);
-      const meta = { title, artist: $("#scArtist").value.trim(), instrument: $("#scInst").value };
-      let images = {};
-      try {
-        images = await buildScoreImages(newRef.id, file, (file.type || "").includes("pdf") || ext === "pdf", meta, (t) => (btn.textContent = `만드는 중… ${t}`));
-      } catch (e) { console.warn("악보 사진 만들기 실패", e); }
-      await setDoc(newRef, {
-        ...meta, fileUrl: url, filePath: path, fileType: file.type || "", fileName: file.name,
-        pageCount: 0, coverPath: null, ...images, views: 0, downloads: 0, createdAt: serverTimestamp(),
-      });
-      toast(images.pageCount ? `악보를 올렸어요 (사진 ${images.pageCount}장)` : "악보를 올렸어요. DM 사진을 못 만들었으니 'DM 사진 만들기'를 눌러 주세요");
+      let record;
+      if (picked.pdf) {
+        const file = picked.pdf;
+        const path = `scores/${newRef.id}/score.pdf`;
+        const task = uploadBytesResumable(sref(storage, path), file, { contentType: "application/pdf" });
+        await new Promise((res, rej) => task.on("state_changed", (x) => setProg(x.bytesTransferred / x.totalBytes), rej, res));
+        const url = await getDownloadURL(task.snapshot.ref);
+        let images = {};
+        try {
+          images = await buildScoreImages(newRef.id, file, true, meta, (t) => (btn.textContent = `만드는 중… ${t}`));
+        } catch (e) { console.warn("악보 사진 만들기 실패", e); }
+        record = { fileUrl: url, filePath: path, fileType: "application/pdf", fileName: file.name, pageCount: 0, coverPath: null, ...images };
+      } else {
+        // 이미지 여러 장: 고른 순서대로 페이지 사진이 됨
+        btn.textContent = "이미지 정리 중…";
+        const pages = await renderImageFiles(picked.images);
+        const images = await buildScoreImages(newRef.id, null, false, meta, (t) => {
+          btn.textContent = `올리는 중… ${t}`;
+          const m = t.match(/(\d+)\/(\d+)/);
+          if (m) setProg(+m[1] / +m[2]);
+        }, pages);
+        record = {
+          fileUrl: "", filePath: `scores/${newRef.id}/page-1.jpg`, fileType: "images",
+          fileName: picked.images.map((x) => x.name).join(", ").slice(0, 300), ...images,
+        };
+      }
+      await setDoc(newRef, { ...meta, ...record, views: 0, downloads: 0, createdAt: serverTimestamp() });
+      picked.pdf = null;
+      picked.images = [];
+      if (S.view === "scores") render(); // 입력칸·버튼 초기화
+      toast(record.pageCount ? `악보를 올렸어요 (DM 사진 ${record.pageCount}장)` : "악보를 올렸어요. DM 사진을 못 만들었으니 'DM 사진 만들기'를 눌러 주세요");
     } catch (e) {
       toast("올리지 못했어요: " + e.message, true);
       btn.disabled = false;
+      btn.textContent = "올리기";
       prog.hidden = true;
     }
   };
