@@ -250,7 +250,7 @@ async function handleComment(igUserId, value) {
   try {
     sent = await graphPost("/me/messages", token, {
       recipient: { comment_id: commentId },
-      message: { text: text1, quick_replies: quickReplies(settings.buttonLabel, PAYLOAD_GET) },
+      message: { text: text1, quick_replies: quickReplies(settings.buttonLabel, `${PAYLOAD_GET}:${mediaId || "none"}`) },
     });
   } catch (e) {
     // 버튼이 거부되면 글자만 다시 시도 (비공개 답장은 성공해야 1회로 계산됨)
@@ -423,10 +423,29 @@ async function handleMessage(igUserId, m) {
   const personRef = db.doc(`people/${igsid}`);
   const personSnap = await personRef.get();
   const person = personSnap.exists ? personSnap.data() : null;
-  const pending = person?.pending || {};
-  const mediaIds = Object.keys(pending);
+  const pending = { ...(person?.pending || {}) };
+
+  // 7일 지난 요청은 정리 (인스타 정책상 오래된 댓글 요청은 처리하지 않음)
+  const WEEK = 7 * 24 * 3600 * 1000;
+  for (const id of Object.keys(pending)) if (Date.now() - (pending[id]?.at || 0) > WEEK) delete pending[id];
+
+  // 이 답장이 어느 게시물 요청에 대한 것인지 고르기
+  //  - 버튼: 버튼에 담긴 게시물만 (예: "GET_SCORE:<게시물ID>")
+  //  - 직접 쓴 답장: 가장 최근 요청 하나만
+  //  (예전 버튼처럼 게시물 정보가 없으면 최근 요청 하나)
+  const [kind, idsPart] = String(payload).split(":");
+  let mediaIds = [];
+  if ((kind === PAYLOAD_GET || kind === PAYLOAD_FOLLOW) && idsPart) {
+    mediaIds = idsPart.split(",").filter((id) => pending[id]);
+  } else {
+    const latest = Object.keys(pending).sort((a, b) => (pending[b]?.at || 0) - (pending[a]?.at || 0))[0];
+    if (latest) mediaIds = [latest];
+  }
   if (!mediaIds.length) {
     logger.info("대기 중인 요청 없는 DM", { igsid, text, payload });
+    if (Object.keys(person?.pending || {}).length !== Object.keys(pending).length) {
+      await personRef.update({ pending });
+    }
     return;
   }
 
@@ -505,7 +524,7 @@ async function handleMessage(igUserId, m) {
     }
     const vars = { username, account, title: titles.length ? `「${titles.join(", ")}」 ` : "" };
     try {
-      await sendDm(token, igsid, fill(settings.msgFollowAsk, vars), quickReplies(settings.followButtonLabel, PAYLOAD_FOLLOW));
+      await sendDm(token, igsid, fill(settings.msgFollowAsk, vars), quickReplies(settings.followButtonLabel, `${PAYLOAD_FOLLOW}:${needFollow.map((x) => x.mediaId).join(",")}`));
       await logDm({ igsid, username, mediaId: needFollow[0].mediaId, type: "follow_ask", status: "sent", following });
     } catch (e) {
       await logDm({ igsid, username, mediaId: needFollow[0].mediaId, type: "follow_ask", status: "failed", error: e.message });
@@ -519,7 +538,7 @@ async function handleMessage(igUserId, m) {
   }
 
   // pending 맵 통째로 교체 (발송 끝난 요청은 빠짐)
-  for (const id of Object.keys(newPending)) newPending[id] = { ...newPending[id], responded: true };
+  for (const id of mediaIds) if (newPending[id]) newPending[id] = { ...newPending[id], responded: true };
   await personRef.update({ ...updates, pending: newPending });
 }
 
