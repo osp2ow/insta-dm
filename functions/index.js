@@ -784,6 +784,31 @@ exports.igStatus = onRequest(
     }
     const subs = await graphGet("/me/subscribed_apps", token);
     out.subscribedApps = subs.ok ? subs.data : { error: subs.data?.error?.message || subs.data };
+    if (req.query.diag === "1") {
+      const ts = (v) => (v?.toDate ? v.toDate().toISOString().slice(5, 16) : "");
+      const cs = await db.collection("comments").orderBy("createdAt", "desc").limit(150).get();
+      const ds = await db.collection("dms").orderBy("createdAt", "desc").limit(300).get();
+      const ps = await db.collection("people").limit(300).get();
+      const count = (arr, f) => arr.reduce((m, x) => ((m[f(x)] = (m[f(x)] || 0) + 1), m), {});
+      const comments = cs.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const dms = ds.docs.map((d) => d.data());
+      out.diag = {
+        commentActions: count(comments, (c) => c.action),
+        dmTypes: count(dms, (d) => `${d.type}:${d.status}${d.via ? ":" + d.via : ""}`),
+        dmErrors: dms.filter((d) => d.status === "failed").slice(0, 15).map((d) => ({ t: ts(d.createdAt), type: d.type, user: d.username, err: String(d.error || "").slice(0, 160) })),
+        commentErrors: comments.filter((c) => c.dmError).slice(0, 10).map((c) => ({ t: ts(c.createdAt), user: c.username, err: String(c.dmError).slice(0, 160) })),
+        pending: ps.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((p) => p.pending && Object.keys(p.pending).length)
+          .map((p) => ({
+            user: p.username,
+            following: p.isFollowing,
+            delivered: p.deliveredCount || 0,
+            items: Object.entries(p.pending).map(([m, v]) => `${m.slice(-5)}:${v.asked ? "follow_asked" : v.responded ? "responded" : "no_tap"}:${new Date(v.at || 0).toISOString().slice(5, 16)}`),
+          })),
+        recent: comments.slice(0, 25).map((c) => ({ t: ts(c.createdAt), user: c.username, text: String(c.text || "").slice(0, 30), media: String(c.mediaId || "").slice(-5), act: c.action, btn: c.usedButton })),
+      };
+    }
     const recent = await db.collection("comments").orderBy("createdAt", "desc").limit(5).get();
     out.recentComments = recent.docs.map((d) => {
       const x = d.data();
