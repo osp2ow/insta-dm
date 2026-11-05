@@ -56,6 +56,14 @@ const ago = (d) => Math.round((Date.now() - d) / 3600000) + "h";
       else tally.text++;
     }
     console.log("내역:", JSON.stringify(tally), "서로 다른 사람:", orphanIds.size);
+    console.log("== 짝 없는 DM 보낸 사람별 상태");
+    for (const l of logs.slice(0, 31)) {
+      const id = l.jsonPayload?.igsid; const pp = peopleById[id] || {};
+      const t = Date.parse(l.timestamp);
+      const mine = ds.filter((d) => d.igsid === id).sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
+      const myC = cs.filter((c) => c.igsid === id);
+      console.log(JSON.stringify({ ago: ago(t), text: String(l.jsonPayload?.text || "").slice(0, 12), comments: myC.map((c) => ago(c.createdAt.toMillis()) + ":" + String(c.mediaId).slice(-5)).join(","), dms: mine.map((d) => d.type[0] + (d.status === "sent" ? "" : "!") + "@" + ago(d.createdAt.toMillis())).join(","), pendingNow: Object.keys(pp.pending || {}).map((k) => k.slice(-5)).join(","), following: pp.isFollowing }));
+    }
     console.log("샘플:", JSON.stringify(logs.slice(0, 15).map((l) => ({ ago: ago(Date.parse(l.timestamp)), payload: l.jsonPayload?.payload, text: String(l.jsonPayload?.text || "").slice(0, 15), hasPerson: !!peopleById[l.jsonPayload?.igsid] }))));
     // 짝 못 찾은 사람의 igsid가 people에 없을 때, 같은 사람의 다른 id가 있는지 (username으로 비교는 토큰 필요 → 개수만)
   } catch (e) {

@@ -14,4 +14,4 @@ jobs:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v2
       - run: NODE_PATH=functions/node_modules node tools/diag.js
-      - run: bash tools/diag2.sh
+
