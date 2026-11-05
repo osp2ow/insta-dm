@@ -502,13 +502,16 @@ async function handleMessage(igUserId, m) {
       await bump(mediaId === "none" ? null : mediaId, { responded: 1 });
     }
     // 조회 실패(null)면 막지 않고 보냄
-    if (cfg.followersOnly && following === false) needFollow.push({ mediaId, cfg, item });
-    else deliver.push({ mediaId, cfg, item });
+    // 팔로우 요청을 이미 받은 사람이 [팔로우 완료]를 다시 누르면, 인스타 팔로우 정보가 늦게
+    // 반영되는 경우가 있어 무한 반복을 막기 위해 믿고 보냄
+    const trustRetry = kind === PAYLOAD_FOLLOW && item.asked;
+    if (cfg.followersOnly && following === false && !trustRetry) needFollow.push({ mediaId, cfg, item });
+    else deliver.push({ mediaId, cfg, item, unverified: cfg.followersOnly && following === false });
   }
 
   const newPending = { ...pending };
 
-  for (const { mediaId, cfg } of deliver) {
+  for (const { mediaId, cfg, unverified } of deliver) {
     const score = await getScore(cfg.scoreId);
     const link = score ? `${SITE}/s/${score.id}` : "";
     const vars = { username, account, title: score?.title ? `「${score.title}」 ` : "", link };
@@ -523,7 +526,7 @@ async function handleMessage(igUserId, m) {
       } else {
         await sendDm(token, igsid, fill(settings.msgNoScore, vars));
       }
-      await logDm({ igsid, username, mediaId, scoreId: score?.id || null, type: score ? "delivery" : "no_score", status: "sent", following, via });
+      await logDm({ igsid, username, mediaId, scoreId: score?.id || null, type: score ? "delivery" : "no_score", status: "sent", following, via, ...(unverified ? { followUnverified: true } : {}) });
       await bump(mediaId === "none" ? null : mediaId, { delivered: 1 });
       delete newPending[mediaId];
       updates.deliveredCount = FieldValue.increment(1);
