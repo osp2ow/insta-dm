@@ -288,6 +288,21 @@ async function handleComment(igUserId, value) {
     ),
   ]);
 
+  // 상대가 최근 24시간 안에 먼저 DM을 보냈다면 대화창이 열려 있으니 버튼을 기다리지 않고 바로 처리
+  const lastIn = existing.exists ? Number(existing.get("lastInboundAt") || 0) : 0;
+  if (lastIn && Date.now() - lastIn < 23 * 3600 * 1000) {
+    try {
+      await handleMessage(igUserId, {
+        _synthetic: true,
+        sender: { id: igsid },
+        message: { text: "", quick_reply: { payload: `${PAYLOAD_GET}:${mediaId || "none"}` } },
+      });
+      await ref.update({ autoDelivered: true });
+    } catch (e) {
+      logger.warn("대화창 열린 상대 바로 발송 실패", { igsid, error: e.message });
+    }
+  }
+
   if (settings.publicReplyEnabled) {
     const msg = pick(settings.publicReplies);
     if (msg) {
@@ -421,13 +436,15 @@ async function handleMessage(igUserId, m) {
   }
 
   const personRef = db.doc(`people/${igsid}`);
+  // 상대가 보낸 DM 시각 기록 (24시간 안에 댓글을 달면 버튼 없이 바로 악보를 보내기 위해)
+  if (!m._synthetic) await personRef.set({ lastInboundAt: Date.now() }, { merge: true });
   const personSnap = await personRef.get();
   const person = personSnap.exists ? personSnap.data() : null;
   const pending = { ...(person?.pending || {}) };
 
-  // 7일 지난 요청은 정리 (인스타 정책상 오래된 댓글 요청은 처리하지 않음)
-  const WEEK = 7 * 24 * 3600 * 1000;
-  for (const id of Object.keys(pending)) if (Date.now() - (pending[id]?.at || 0) > WEEK) delete pending[id];
+  // 30일 지난 요청은 정리 (상대가 먼저 DM을 보내면 24시간 동안은 보낼 수 있어서 넉넉히 둠)
+  const EXPIRE = 30 * 24 * 3600 * 1000;
+  for (const id of Object.keys(pending)) if (Date.now() - (pending[id]?.at || 0) > EXPIRE) delete pending[id];
 
   // 이 답장이 어느 게시물 요청에 대한 것인지 고르기
   //  - 버튼: 버튼에 담긴 게시물만 (예: "GET_SCORE:<게시물ID>")
