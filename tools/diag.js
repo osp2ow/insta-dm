@@ -57,11 +57,13 @@ const ago = (d) => Math.round((Date.now() - d) / 3600000) + "h";
     }
     console.log("내역:", JSON.stringify(tally), "서로 다른 사람:", orphanIds.size);
     console.log("== 짝 없는 DM 보낸 사람별 상태");
-    for (const l of logs.slice(0, 31)) {
+    for (const l of logs.slice(0, 8)) {
       const id = l.jsonPayload?.igsid; const pp = peopleById[id] || {};
       const t = Date.parse(l.timestamp);
       const mine = ds.filter((d) => d.igsid === id).sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
       const myC = cs.filter((c) => c.igsid === id);
+      const hhmm = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(5, 19);
+      console.log("  시각(KST) 답장:", hhmm(t), "| 댓글:", myC.map((c) => hhmm(c.createdAt.toMillis()) + "(웹훅받은시각)").join(","), "| 첫DM:", mine.filter((d) => d.type === "opening").map((d) => hhmm(d.createdAt.toMillis())).join(","));
       console.log(JSON.stringify({ ago: ago(t), text: String(l.jsonPayload?.text || "").slice(0, 12), comments: myC.map((c) => ago(c.createdAt.toMillis()) + ":" + String(c.mediaId).slice(-5)).join(","), dms: mine.map((d) => d.type[0] + (d.status === "sent" ? "" : "!") + "@" + ago(d.createdAt.toMillis())).join(","), pendingNow: Object.keys(pp.pending || {}).map((k) => k.slice(-5)).join(","), following: pp.isFollowing }));
     }
     console.log("샘플:", JSON.stringify(logs.slice(0, 15).map((l) => ({ ago: ago(Date.parse(l.timestamp)), payload: l.jsonPayload?.payload, text: String(l.jsonPayload?.text || "").slice(0, 15), hasPerson: !!peopleById[l.jsonPayload?.igsid] }))));
