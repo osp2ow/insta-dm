@@ -892,7 +892,7 @@ VIEWS.scores = () => {
   <div class="settings-grid">
     <section class="panel">
       <h3>새 악보 올리기</h3>
-      <p class="sub">PDF 파일 1개, 또는 악보 이미지를 페이지마다 1장씩 여러 장 올릴 수 있어요. (이미지는 최대 10장, 파일당 30MB)</p>
+      <p class="sub">PDF 파일 1개, 또는 악보 이미지를 페이지마다 1장씩 여러 장 올릴 수 있어요. DM에는 최대 10쪽까지 사진으로 보내져요.</p>
       <div class="field"><label for="scTitle">곡 제목</label><input class="input" id="scTitle" placeholder="예: Back in Black"></div>
       <div class="field"><label for="scArtist">아티스트·설명</label><input class="input" id="scArtist" placeholder="예: AC/DC · 드럼 카피 1절"></div>
       <div class="field"><label for="scInst">악기</label>
@@ -916,14 +916,15 @@ VIEWS.scores = () => {
 const picked = { pdf: null, images: [] };
 const naturalSort = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
 const MAX_PAGES = 10;
-const MAX_SIZE = 30 * 1024 * 1024;
+const MAX_SIZE = 30 * 1024 * 1024; // 원본 PDF를 저장할 수 있는 크기 (넘으면 페이지 사진만 저장)
+const MAX_PICK = 300 * 1024 * 1024; // 고를 수 있는 최대 크기
 
 function addPicked(fileList) {
   const files = [...fileList];
   const pdfs = files.filter((x) => x.type === "application/pdf" || /\.pdf$/i.test(x.name));
   const imgs = files.filter((x) => (x.type || "").startsWith("image/"));
-  const big = files.find((x) => x.size > MAX_SIZE);
-  if (big) return toast(`${big.name}: 30MB 이하 파일만 올릴 수 있어요`, true);
+  const big = files.find((x) => x.size > MAX_PICK);
+  if (big) return toast(`${big.name}: 300MB 이하 파일만 올릴 수 있어요`, true);
   if (pdfs.length && (imgs.length || picked.images.length)) return toast("PDF와 이미지는 섞어서 올릴 수 없어요. 하나만 골라 주세요", true);
   if (pdfs.length > 1) return toast("PDF는 1개만 올릴 수 있어요", true);
   if (pdfs.length) { picked.pdf = pdfs[0]; picked.images = []; }
@@ -944,7 +945,7 @@ function drawPicked() {
   const kb = (n) => (n > 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + "MB" : Math.round(n / 1024) + "KB");
   if (picked.pdf) {
     box.innerHTML = `<div class="picked"><div class="picked-head"><span>PDF 1개</span><button data-clear>지우기</button></div>
-      <div class="pick" style="grid-template-columns:44px 1fr"><span class="cover none" style="width:44px;height:56px;display:grid;place-items:center;font-size:11px;border:1px solid var(--line);border-radius:3px">PDF</span><div class="nm">${esc(picked.pdf.name)}<span>${kb(picked.pdf.size)} · 페이지마다 DM 사진이 자동으로 만들어져요</span></div></div></div>`;
+      <div class="pick" style="grid-template-columns:44px 1fr"><span class="cover none" style="width:44px;height:56px;display:grid;place-items:center;font-size:11px;border:1px solid var(--line);border-radius:3px">PDF</span><div class="nm">${esc(picked.pdf.name)}<span>${kb(picked.pdf.size)} · 페이지마다 DM 사진이 자동으로 만들어져요${picked.pdf.size > MAX_SIZE ? " (용량이 커서 원본 PDF는 저장하지 않고 사진만 저장해요)" : ""}</span></div></div></div>`;
   } else if (picked.images.length) {
     box.innerHTML = `<div class="picked"><div class="picked-head"><span>이미지 ${picked.images.length}장 · 이 순서대로 DM에 보내져요</span><button data-clear>모두 지우기</button></div>
       ${picked.images.map((f, i) => `<div class="pick"><span class="no">${i + 1}</span><img src="${f._url}" alt=""><div class="nm">${esc(f.name)}<span>${kb(f.size)}</span></div>
@@ -983,7 +984,7 @@ BIND.scores = () => {
     try {
       const newRef = doc(collection(db, "scores"));
       let record;
-      if (picked.pdf) {
+      if (picked.pdf && picked.pdf.size <= MAX_SIZE) {
         const file = picked.pdf;
         const path = `scores/${newRef.id}/score.pdf`;
         const task = uploadBytesResumable(sref(storage, path), file, { contentType: "application/pdf" });
@@ -994,6 +995,17 @@ BIND.scores = () => {
           images = await buildScoreImages(newRef.id, file, true, meta, (t) => (btn.textContent = `만드는 중… ${t}`));
         } catch (e) { console.warn("악보 사진 만들기 실패", e); }
         record = { fileUrl: url, filePath: path, fileType: "application/pdf", fileName: file.name, pageCount: 0, coverPath: null, ...images };
+      } else if (picked.pdf) {
+        // 큰 PDF: 원본은 저장하지 않고 페이지 사진만 저장 (DM에는 사진만 가므로 문제없음)
+        const file = picked.pdf;
+        btn.textContent = "PDF 펼치는 중…";
+        const pages = await renderPages(file, true);
+        const images = await buildScoreImages(newRef.id, null, false, meta, (t) => {
+          btn.textContent = `올리는 중… ${t}`;
+          const m = t.match(/(\d+)\/(\d+)/);
+          if (m) setProg(+m[1] / +m[2]);
+        }, pages);
+        record = { fileUrl: "", filePath: `scores/${newRef.id}/page-1.jpg`, fileType: "images", fileName: file.name, originalSkipped: true, ...images };
       } else {
         // 이미지 여러 장: 고른 순서대로 페이지 사진이 됨
         btn.textContent = "이미지 정리 중…";
