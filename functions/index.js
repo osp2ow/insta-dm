@@ -173,6 +173,19 @@ async function logDm(data) {
   await db.collection("dms").add({ ...data, createdAt: FieldValue.serverTimestamp() });
 }
 
+// 게시물 전용 문구·링크 (협찬 상품 안내 등). 꺼져 있으면 null → 공통 악보 문구 사용
+function customOf(post) {
+  if (!post || !post.customMsg) return null;
+  const s = (v) => String(v || "").trim();
+  return {
+    opening: s(post.customOpening),
+    buttonLabel: s(post.customButton).slice(0, 20),
+    delivery: s(post.customDelivery),
+    link: s(post.customLink),
+    publicReply: s(post.customPublicReply),
+  };
+}
+
 // 게시물에 적용할 설정 계산
 async function resolvePostConfig(mediaId, settings) {
   const snap = mediaId ? await db.doc(`posts/${mediaId}`).get() : null;
@@ -184,6 +197,7 @@ async function resolvePostConfig(mediaId, settings) {
       followersOnly: !!post.followersOnly,
       scoreId: post.scoreId || null,
       source: "post",
+      custom: customOf(post),
     };
   }
   if (settings.unconfiguredMode === "ignore") {
@@ -243,14 +257,16 @@ async function handleComment(igUserId, value) {
   const token = await getAccessToken();
   const score = await getScore(cfg.scoreId);
   const vars = { username, title: score?.title ? `「${score.title}」 ` : "", account: (await getAccount(token)).username || "" };
-  const text1 = fill(settings.msgOpening, vars);
+  const custom = cfg.custom;
+  const text1 = fill((custom && custom.opening) || settings.msgOpening, vars);
+  const btnLabel = (custom && custom.buttonLabel) || settings.buttonLabel;
 
   let sent = null;
   let usedButton = true;
   try {
     sent = await graphPost("/me/messages", token, {
       recipient: { comment_id: commentId },
-      message: { text: text1, quick_replies: quickReplies(settings.buttonLabel, `${PAYLOAD_GET}:${mediaId || "none"}`) },
+      message: { text: text1, quick_replies: quickReplies(btnLabel, `${PAYLOAD_GET}:${mediaId || "none"}`) },
     });
   } catch (e) {
     // 버튼이 거부되면 글자만 다시 시도 (비공개 답장은 성공해야 1회로 계산됨)
@@ -304,7 +320,10 @@ async function handleComment(igUserId, value) {
   }
 
   if (settings.publicReplyEnabled) {
-    const msg = pick(settings.publicReplies);
+    // 전용 문구 게시물은 "악보" 답글이 어울리지 않으니 전용 답글(없으면 중립 문구) 사용
+    const msg = custom
+      ? custom.publicReply || "DM 보내드렸어요! 확인해 주세요 📩"
+      : pick(settings.publicReplies);
     if (msg) {
       try {
         await graphPost(`/${commentId}/replies`, token, { message: fill(msg, vars) });
@@ -342,8 +361,22 @@ function fileUrl(score, query = "") {
 }
 
 // 설정에 따라 사진·PDF·카드를 보내고, 하나도 못 보내면 링크를 보냄
-async function sendScore(token, igsid, score, link, settings) {
+async function sendScore(token, igsid, score, link, settings, opts = {}) {
   const sent = [];
+  if (opts.imagesOnly) {
+    // 전용 문구 게시물: 사진만 보냄 (악보 카드·PDF 없이)
+    const pages = Math.min(Number(score.pageCount || 0), 10);
+    if (pages > 0) {
+      const v = encodeURIComponent(score.pagesVersion || 1);
+      const attachments = Array.from({ length: pages }, (_, i) => ({
+        type: "image",
+        payload: { url: `${SITE}/f/${score.id}?page=${i + 1}&v=${v}` },
+      }));
+      await graphPost("/me/messages", token, { recipient: { id: igsid }, message: { attachments } });
+      sent.push("images");
+    }
+    return sent;
+  }
   const isPdf = /\.pdf$/i.test(score.filePath || "") || String(score.fileType || "").includes("pdf");
   const pages = Math.min(Number(score.pageCount || 0), 10);
 
@@ -517,7 +550,27 @@ async function handleMessage(igUserId, m) {
     const vars = { username, account, title: score?.title ? `「${score.title}」 ` : "", link };
     try {
       let via = "text";
-      if (score) {
+      if (cfg.custom) {
+        // 전용 문구 게시물: 정리한 이미지 → 안내 글 + 링크 (링크가 마지막에 와야 눈에 잘 띔)
+        const parts = [];
+        if (score) {
+          try {
+            parts.push(...(await sendScore(token, igsid, score, link, settings, { imagesOnly: true })));
+          } catch (e) {
+            logger.warn("전용 게시물 이미지 발송 실패", { igsid, error: e.detail || e.message });
+          }
+        }
+        const url = cfg.custom.link;
+        let body = fill(cfg.custom.delivery, { ...vars, link: url });
+        if (url && !cfg.custom.delivery.includes("{link}")) body = `${body}\n\n${url}`;
+        body = tidy(body);
+        if (body) {
+          await sendDm(token, igsid, body);
+          parts.push(url ? "text+link" : "text");
+        }
+        if (!parts.length) throw new Error("보낼 이미지나 문구가 없어요");
+        via = parts.join("+");
+      } else if (score) {
         // 안내 글(링크 없이) → 악보 사진 → PDF 파일 → (선택) 악보 페이지 카드
         const intro = tidy(fill(settings.msgDelivery, { ...vars, link: "" }));
         if (intro) await sendDm(token, igsid, intro);
@@ -526,7 +579,7 @@ async function handleMessage(igUserId, m) {
       } else {
         await sendDm(token, igsid, fill(settings.msgNoScore, vars));
       }
-      await logDm({ igsid, username, mediaId, scoreId: score?.id || null, type: score ? "delivery" : "no_score", status: "sent", following, via, ...(unverified ? { followUnverified: true } : {}) });
+      await logDm({ igsid, username, mediaId, scoreId: score?.id || null, type: score || cfg.custom ? "delivery" : "no_score", status: "sent", following, via, ...(unverified ? { followUnverified: true } : {}) });
       await bump(mediaId === "none" ? null : mediaId, { delivered: 1 });
       delete newPending[mediaId];
       updates.deliveredCount = FieldValue.increment(1);
@@ -543,8 +596,12 @@ async function handleMessage(igUserId, m) {
       if (s?.title) titles.push(s.title);
     }
     const vars = { username, account, title: titles.length ? `「${titles.join(", ")}」 ` : "" };
+    // 전용 문구 게시물만 남았으면 "악보" 표현이 없는 문구로 안내
+    const followTpl = needFollow.every((x) => x.cfg.custom)
+      ? "{username}님, 팔로워분들께만 보내드리고 있어요 🙏\n@{account} 팔로우 후 아래 [팔로우 완료] 버튼을 눌러 주세요!"
+      : settings.msgFollowAsk;
     try {
-      await sendDm(token, igsid, fill(settings.msgFollowAsk, vars), quickReplies(settings.followButtonLabel, `${PAYLOAD_FOLLOW}:${needFollow.map((x) => x.mediaId).join(",")}`));
+      await sendDm(token, igsid, fill(followTpl, vars), quickReplies(settings.followButtonLabel, `${PAYLOAD_FOLLOW}:${needFollow.map((x) => x.mediaId).join(",")}`));
       await logDm({ igsid, username, mediaId: needFollow[0].mediaId, type: "follow_ask", status: "sent", following });
     } catch (e) {
       await logDm({ igsid, username, mediaId: needFollow[0].mediaId, type: "follow_ask", status: "failed", error: e.message });

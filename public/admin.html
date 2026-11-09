@@ -637,7 +637,7 @@ function mediaCard(m) {
       <div class="body">
         <div class="cap">${esc((m.caption || "캡션 없음").slice(0, 80))}</div>
         ${on ? `<div class="meta"><span>키워드 <b>${esc(kws.join(", ") || "–")}</b></span></div>
-        <div class="meta">${p.scoreId ? `<span class="score">♪ ${esc(scoreTitle(p.scoreId) || "삭제된 악보")}</span>` : '<span style="color:var(--faint)">악보 미연결 → 정리 중 안내</span>'}</div>` : ""}
+        <div class="meta">${p.scoreId ? `<span class="score">♪ ${esc(scoreTitle(p.scoreId) || "삭제된 악보")}</span>` : p.customMsg ? "" : '<span style="color:var(--faint)">악보 미연결 → 정리 중 안내</span>'}${p.customMsg ? ' <span class="chip brass">전용 문구·링크</span>' : ""}</div>` : ""}
         <div class="stats num">댓글 ${n(m.comments_count)} · 요청 ${n(s.matched)} · 전달 ${n(s.delivered)}</div>
       </div>
     </button>
@@ -655,7 +655,7 @@ BIND.posts = () => {
     const id = t.dataset.toggle;
     const p = S.posts[id] || {};
     const m = S.media.find((x) => x.id === id) || {};
-    if (t.checked && !(p.configured && p.scoreId)) {
+    if (t.checked && !(p.configured && (p.scoreId || p.customMsg))) {
       // 처음 켜는 게시물: 보낼 악보부터 고르게 함
       t.checked = false;
       openEditor(id, { enable: true });
@@ -684,6 +684,12 @@ function openEditor(id, opts = {}) {
     keywords: [...(p.configured && p.keywords?.length ? p.keywords : S.settings.defaultKeywords || ["악보"])],
     scoreId: p.scoreId || "",
     followersOnly: p.configured ? !!p.followersOnly : !!S.settings.defaultFollowersOnly,
+    customMsg: !!p.customMsg,
+    customOpening: p.customOpening ?? "안녕하세요 {username}님! 🥁\n요청하신 정보 보내드릴게요.\n\n아래 버튼을 눌러 주세요!\n(버튼이 안 보이면 이 메시지에 아무 답장이나 보내 주세요)",
+    customButton: p.customButton ?? "받기 📩",
+    customDelivery: p.customDelivery ?? "자세한 내용은 아래 링크에서 확인하세요 👇\n{link}",
+    customLink: p.customLink ?? "",
+    customPublicReply: p.customPublicReply ?? "DM 보내드렸어요! 확인해 주세요 📩",
   };
   const s = p.stats || {};
   const img = m.thumbnail_url || (m.media_type !== "VIDEO" ? m.media_url : "");
@@ -700,10 +706,27 @@ function openEditor(id, opts = {}) {
           <div class="field" style="margin-top:16px"><span class="lbl">반응할 키워드</span>
             <div class="kw-box" id="kwBox">${draft.keywords.map((k, i) => `<span class="kw">${esc(k)}<button data-rm="${i}" aria-label="${esc(k)} 삭제">×</button></span>`).join("")}<input id="kwInput" placeholder="입력 후 Enter" aria-label="키워드 추가"></div>
             <span class="hint">댓글에 이 단어가 들어 있으면 DM을 보내요. 띄어쓰기는 무시해요.</span></div>
-          <div class="field"><label for="edScore">보낼 악보</label>
-            <select class="input" id="edScore"><option value="">악보 없음 (정리 중 안내 보내기)</option>${S.scores.map((sc) => `<option value="${esc(sc.id)}" ${sc.id === draft.scoreId ? "selected" : ""}>${esc(sc.title)}${sc.instrument ? " · " + esc(sc.instrument) : ""}</option>`).join("")}</select>
+          <div class="field"><label for="edScore">${draft.customMsg ? "보낼 이미지 (악보 탭에 올린 것)" : "보낼 악보"}</label>
+            <select class="input" id="edScore"><option value="">${draft.customMsg ? "이미지 없음 (문구·링크만 보내기)" : "악보 없음 (정리 중 안내 보내기)"}</option>${S.scores.map((sc) => `<option value="${esc(sc.id)}" ${sc.id === draft.scoreId ? "selected" : ""}>${esc(sc.title)}${sc.instrument ? " · " + esc(sc.instrument) : ""}</option>`).join("")}</select>
             <span class="hint">${S.scores.length ? "" : "아직 올린 악보가 없어요. "}<a href="#scores" data-goscores>악보 올리러 가기</a></span></div>
           <div class="switch"><div class="t"><b>팔로워에게만 보내기</b><span>미팔로우면 팔로우를 부탁하고, 팔로우하면 보내요</span></div><label class="toggle"><input type="checkbox" id="edFollow" ${draft.followersOnly ? "checked" : ""}><i></i></label></div>
+          <div class="switch" style="margin-top:16px"><div class="t"><b>이 게시물 전용 문구·링크</b><span>협찬 상품 안내처럼 악보가 아닌 걸 보낼 때 켜요. 켜면 위에서 고른 이미지 → 아래 문구 + 링크 순서로 가요.</span></div><label class="toggle"><input type="checkbox" id="edCustom" ${draft.customMsg ? "checked" : ""}><i></i></label></div>
+          ${draft.customMsg ? `
+          <div class="field" style="margin-top:12px"><label for="edLink">링크</label>
+            <input class="input" id="edLink" type="url" inputmode="url" placeholder="https://..." value="${esc(draft.customLink)}" data-cf="customLink">
+            <span class="hint">전달 문구의 {link} 자리에 들어가요. {link}가 없으면 문구 맨 끝에 붙어요.</span></div>
+          <div class="field"><label for="edOpening">첫 안내 DM</label>
+            <textarea class="input" id="edOpening" rows="5" data-cf="customOpening">${esc(draft.customOpening)}</textarea>
+            <span class="hint">댓글 단 사람에게 처음 가는 메시지예요. 아래 버튼이 같이 붙어요. {username} 쓸 수 있어요.</span></div>
+          <div class="field"><label for="edButton">버튼 이름</label>
+            <input class="input" id="edButton" maxlength="20" value="${esc(draft.customButton)}" data-cf="customButton">
+            <span class="hint">20자까지</span></div>
+          <div class="field"><label for="edDelivery">전달 DM</label>
+            <textarea class="input" id="edDelivery" rows="5" data-cf="customDelivery">${esc(draft.customDelivery)}</textarea>
+            <span class="hint">버튼을 누르면 이미지 다음에 이 글이 가요. {username}, {link} 쓸 수 있어요.</span></div>
+          <div class="field"><label for="edPublic">댓글 공개 답글</label>
+            <input class="input" id="edPublic" value="${esc(draft.customPublicReply)}" data-cf="customPublicReply">
+            <span class="hint">설정에서 공개 답글을 켜 둔 경우에만 달려요.</span></div>` : ""}
         </div>
       </div>
       <footer>
@@ -716,6 +739,8 @@ function openEditor(id, opts = {}) {
     $("#edEnabled").onchange = (e) => { draft.enabled = e.target.checked; draw(); };
     $("#edFollow").onchange = (e) => (draft.followersOnly = e.target.checked);
     $("#edScore").onchange = (e) => (draft.scoreId = e.target.value);
+    $("#edCustom").onchange = (e) => { draft.customMsg = e.target.checked; draw(); };
+    ov.querySelectorAll("[data-cf]").forEach((el) => (el.oninput = () => (draft[el.dataset.cf] = el.value)));
     ov.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = () => { draft.keywords.splice(+b.dataset.rm, 1); draw(); $("#kwInput").focus(); }));
     const kwIn = $("#kwInput");
     const addKw = () => {
@@ -733,10 +758,19 @@ function openEditor(id, opts = {}) {
     kwIn.onblur = () => { if (kwIn.value.trim()) addKw(); };
     $("#edSave").onclick = async () => {
       if (draft.enabled && !draft.keywords.length) return toast("키워드를 하나 이상 넣어 주세요", true);
+      const link = draft.customLink.trim();
+      if (draft.customMsg) {
+        if (link && !/^https?:\/\/\S+$/i.test(link)) return toast("링크는 https:// 로 시작하는 주소로 넣어 주세요", true);
+        if (!draft.customOpening.trim()) return toast("첫 안내 DM을 써 주세요", true);
+        if (!draft.customButton.trim()) return toast("버튼 이름을 써 주세요", true);
+        if (!draft.scoreId && !draft.customDelivery.trim() && !link) return toast("보낼 이미지·문구·링크 중 하나는 있어야 해요", true);
+      }
       try {
         await setDoc(doc(db, "posts", id), {
           configured: true, enabled: draft.enabled, keywords: draft.keywords, scoreId: draft.scoreId || null,
-          followersOnly: draft.followersOnly, caption: (m.caption || "").slice(0, 200), permalink: m.permalink || "",
+          followersOnly: draft.followersOnly,
+          customMsg: draft.customMsg, customOpening: draft.customOpening, customButton: draft.customButton.trim(),
+          customDelivery: draft.customDelivery, customLink: link, customPublicReply: draft.customPublicReply.trim(), caption: (m.caption || "").slice(0, 200), permalink: m.permalink || "",
           mediaType: kindLabel(m), updatedAt: serverTimestamp(),
         }, { merge: true });
         toast("저장했어요");
