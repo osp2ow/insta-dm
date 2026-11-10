@@ -1107,17 +1107,37 @@ const COMMENT_ACTIONS = {
 };
 VIEWS.comments = () => {
   const f = S.commentFilter;
-  const list = S.comments.filter((c) => f === "all" || (f === "matched" && c.matched) || (f === "sent" && c.action === "dm_sent") || (f === "failed" && c.action === "dm_failed"));
+  const list = S.comments.filter((c) => f === "all" || (f === "matched" && c.matched) || (f === "sent" && c.action === "dm_sent") || (f === "failed" && c.action === "dm_failed") || (f === "missed" && canSend(c)));
   return `
   <div class="page-head"><div><h2>댓글 기록</h2><p>내 계정 댓글을 뺀 최근 댓글 300개예요. 실시간으로 추가돼요.</p></div></div>
   <div class="toolbar"><div class="seg" role="group" aria-label="보기">
-    ${[["all", `전체 ${S.comments.length}`], ["matched", "키워드 포함"], ["sent", "DM 보냄"], ["failed", "실패"]].map(([k, l]) => `<button data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join("")}
+    ${[["all", `전체 ${S.comments.length}`], ["matched", "키워드 포함"], ["sent", "DM 보냄"], ["failed", "실패"], ["missed", "직접 보낼 수 있음"]].map(([k, l]) => `<button data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join("")}
   </div></div>
   ${list.length ? `<div class="table-wrap"><table><thead><tr><th>시간</th><th>사용자</th><th>댓글</th><th>게시물</th><th>결과</th></tr></thead><tbody>
-  ${list.map((c) => { const [l, cls] = COMMENT_ACTIONS[c.action] || [c.action, "off"]; return `<tr><td class="time">${when(c.createdAt)}</td><td class="user">${esc(c.username || "?")}</td><td class="text">${esc(c.text)}${c.publicReply === "failed" ? '<span class="err">공개 답글 실패</span>' : ""}</td><td class="post">${esc(caption(c.mediaId))}</td><td><span class="chip ${cls}">${l}</span>${c.dmError ? `<span class="err">${esc(c.dmError)}</span>` : ""}</td></tr>`; }).join("")}
+  ${list.map((c) => { const [l, cls] = COMMENT_ACTIONS[c.action] || [c.action, "off"]; return `<tr><td class="time">${when(c.createdAt)}</td><td class="user">${esc(c.username || "?")}</td><td class="text">${esc(c.text)}${c.publicReply === "failed" ? '<span class="err">공개 답글 실패</span>' : ""}</td><td class="post">${esc(caption(c.mediaId))}</td><td><span class="chip ${cls}">${l}</span>${c.manual ? '<span class="chip brass">직접 보냄</span>' : ""}${c.dmError ? `<span class="err">${esc(c.dmError)}</span>` : ""}${canSend(c) ? `<button class="btn" style="margin-top:6px;padding:4px 10px;font-size:12px" data-send="${esc(c.id)}">DM 보내기</button>` : ""}</td></tr>`; }).join("")}
   </tbody></table></div>` : '<div class="panel empty"><b>표시할 댓글이 없어요</b>공개 게시물에 댓글이 달리면 여기에 쌓여요.</div>'}`;
 };
-BIND.comments = () => document.querySelectorAll(".seg [data-f]").forEach((b) => (b.onclick = () => { S.commentFilter = b.dataset.f; render(); }));
+// 키워드가 없어 넘어갔거나 실패한 댓글 중 7일 안 된 것만 직접 보낼 수 있음 (인스타 규칙)
+function canSend(c) {
+  const t = c.createdAt?.toMillis ? c.createdAt.toMillis() : 0;
+  return ["no_keyword", "off", "dm_failed"].includes(c.action) && t && Date.now() - t < 7 * 864e5;
+}
+BIND.comments = () => {
+  document.querySelectorAll(".seg [data-f]").forEach((b) => (b.onclick = () => { S.commentFilter = b.dataset.f; render(); }));
+  document.querySelectorAll("[data-send]").forEach((b) => (b.onclick = async () => {
+    const c = S.comments.find((x) => x.id === b.dataset.send);
+    if (!c) return;
+    if (!confirm(`${c.username || "이 사람"}님에게 이 게시물 첫 안내 DM을 보낼까요?\n\n댓글: ${c.text}\n\n댓글 하나에 한 번만 보낼 수 있어요.`)) return;
+    b.disabled = true; b.textContent = "보내는 중…";
+    try {
+      await adminFn({ action: "sendToComment", commentId: c.id });
+      toast("DM을 보냈어요");
+    } catch (e) {
+      b.disabled = false; b.textContent = "DM 보내기";
+      toast("보내지 못했어요: " + (e.message || e), true);
+    }
+  }));
+};
 
 // ---------- 화면: DM 기록 ----------
 const DM_TYPES = { opening: "첫 안내 (버튼)", follow_ask: "팔로우 요청", delivery: "악보 전달", no_score: "정리 중 안내" };
@@ -1127,7 +1147,7 @@ VIEWS.dms = () => {
   return `
   <div class="page-head"><div><h2>DM 기록</h2><p>자동으로 보낸 최근 DM 300개예요.</p></div></div>
   <div class="toolbar"><div class="seg" role="group" aria-label="보기">
-    ${[["all", "전체"], ["opening", "첫 안내"], ["follow_ask", "팔로우 요청"], ["delivery", "악보 전달"], ["failed", "실패"]].map(([k, l]) => `<button data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join("")}
+    ${[["all", "전체"], ["opening", "첫 안내"], ["follow_ask", "팔로우 요청"], ["delivery", "악보 전달"], ["failed", "실패"], ["missed", "직접 보낼 수 있음"]].map(([k, l]) => `<button data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join("")}
   </div></div>
   ${list.length ? `<div class="table-wrap"><table><thead><tr><th>시간</th><th>받는 사람</th><th>종류</th><th>게시물 · 악보</th><th>팔로우</th><th>상태</th></tr></thead><tbody>
   ${list.map((d) => `<tr><td class="time">${when(d.createdAt)}</td><td class="user">${esc(d.username || "?")}</td><td>${DM_TYPES[d.type] || esc(d.type)}${d.type === "opening" && d.usedButton === false ? '<span class="err" style="color:var(--faint)">버튼 없이 보냄</span>' : ""}</td><td class="post">${esc(caption(d.mediaId))}${d.scoreId ? `<br>♪ ${esc(scoreTitle(d.scoreId) || "삭제된 악보")}` : ""}</td><td>${d.following === true ? "팔로우 중" : d.following === false ? "안 함" : "–"}</td><td>${d.status === "sent" ? '<span class="chip on">보냄</span>' : `<span class="chip bad">실패</span><span class="err">${esc(d.error || "")}</span>`}</td></tr>`).join("")}

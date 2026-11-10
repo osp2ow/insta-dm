@@ -254,6 +254,11 @@ async function handleComment(igUserId, value) {
   await bump(mediaId, { comments: 1, ...(matchedKeyword && cfg.active ? { matched: 1 } : {}) });
   if (!cfg.active || !matchedKeyword) return;
 
+  await sendOpeningForComment({ igUserId, commentId, ref, mediaId, username, fromId, cfg, settings });
+}
+
+// 댓글 단 사람에게 첫 안내 DM(비공개 답장) 보내기 — 웹훅과 관리자 [DM 보내기] 버튼이 같이 씀
+async function sendOpeningForComment({ igUserId, commentId, ref, mediaId, username, fromId, cfg, settings, manual = false }) {
   const token = await getAccessToken();
   const score = await getScore(cfg.scoreId);
   const vars = { username, title: score?.title ? `「${score.title}」 ` : "", account: (await getAccount(token)).username || "" };
@@ -281,7 +286,7 @@ async function handleComment(igUserId, value) {
       await ref.update({ action: "dm_failed", dmError: e2.message });
       await logDm({ igsid: "", username, mediaId, type: "opening", status: "failed", error: e2.message, commentId });
       logger.error("첫 DM 발송 실패", { commentId, error: e2.detail || e2.message });
-      return;
+      return { ok: false, error: e2.detail?.error?.message || e2.message };
     }
   }
 
@@ -289,8 +294,8 @@ async function handleComment(igUserId, value) {
   const personRef = db.doc(`people/${igsid}`);
   const existing = await personRef.get();
   await Promise.all([
-    ref.update({ action: "dm_sent", igsid, usedButton }),
-    logDm({ igsid, username, mediaId, type: "opening", status: "sent", commentId, usedButton }),
+    ref.update({ action: "dm_sent", igsid, usedButton, ...(manual ? { manual: true, dmError: FieldValue.delete() } : {}) }),
+    logDm({ igsid, username, mediaId, type: "opening", status: "sent", commentId, usedButton, ...(manual ? { manual: true } : {}) }),
     bump(mediaId, { opened: 1 }),
     personRef.set(
       {
@@ -334,7 +339,8 @@ async function handleComment(igUserId, value) {
       }
     }
   }
-  logger.info("댓글 처리 완료", { commentId, username, mediaId, igsid, usedButton });
+  logger.info("댓글 처리 완료", { commentId, username, mediaId, igsid, usedButton, manual });
+  return { ok: true };
 }
 
 // ---------- 2단계: DM 응답 처리 (버튼 탭 / 답장) ----------
@@ -674,7 +680,7 @@ exports.igWebhook = onRequest(
 
 // ---------- 관리자 API (관리자 페이지에서 호출) ----------
 
-exports.admin = onCall({ secrets: [IG_ACCESS_TOKEN], timeoutSeconds: 30 }, async (request) => {
+exports.admin = onCall({ secrets: [IG_ACCESS_TOKEN], timeoutSeconds: 60 }, async (request) => {
   const email = request.auth?.token?.email;
   if (!email || !request.auth?.token?.email_verified || !(await isAdminEmail(email))) {
     throw new HttpsError("permission-denied", "관리자만 사용할 수 있어요.");
@@ -716,6 +722,36 @@ exports.admin = onCall({ secrets: [IG_ACCESS_TOKEN], timeoutSeconds: 30 }, async
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new HttpsError("internal", d?.error?.message || "재구독 실패");
     return d;
+  }
+
+  // 키워드가 없어 넘어간 댓글에 관리자가 골라서 DM 보내기 (오타·수정된 댓글 등)
+  if (action === "sendToComment") {
+    const commentId = String(request.data?.commentId || "");
+    if (!commentId) throw new HttpsError("invalid-argument", "댓글이 없어요.");
+    const ref = db.doc(`comments/${commentId}`);
+    // 두 관리자가 동시에 눌러도 한 번만 보내도록 상태를 먼저 잠금
+    const c = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new HttpsError("not-found", "댓글 기록이 없어요.");
+      const d = snap.data();
+      if (d.action === "dm_sent" || d.action === "processing") throw new HttpsError("failed-precondition", "이미 DM을 보냈거나 보내는 중이에요.");
+      if (Date.now() - (d.createdAt?.toMillis() || 0) > 7 * 864e5) throw new HttpsError("failed-precondition", "댓글 단 지 7일이 지나서 인스타 규칙상 보낼 수 없어요.");
+      tx.update(ref, { action: "processing", prevAction: d.action });
+      return d;
+    });
+    const settings = await getSettings();
+    const cfg = await resolvePostConfig(c.mediaId, settings);
+    const me = await getAccount(token);
+    const r = await sendOpeningForComment({
+      igUserId: me.user_id ? String(me.user_id) : "",
+      commentId, ref, mediaId: c.mediaId, username: c.username, fromId: c.fromId, cfg, settings, manual: true,
+    }).catch(async (e) => {
+      await ref.update({ action: "dm_failed", dmError: e.message });
+      return { ok: false, error: e.message };
+    });
+    if (!r.ok) throw new HttpsError("internal", r.error || "보내지 못했어요.");
+    await bump(c.mediaId, { matched: 1 });
+    return { ok: true };
   }
 
   throw new HttpsError("invalid-argument", "알 수 없는 요청이에요.");
