@@ -1,5 +1,8 @@
 name: 발송 진단
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      script: { description: "실행할 스크립트", default: "diag.js" }
 jobs:
   diag:
     runs-on: ubuntu-latest
@@ -13,5 +16,5 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v2
-      - run: NODE_PATH=functions/node_modules node tools/diag.js
+      - run: NODE_PATH=functions/node_modules node tools/${{ inputs.script || 'diag.js' }}
 
