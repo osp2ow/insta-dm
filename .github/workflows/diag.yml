@@ -18,3 +18,6 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
       - run: NODE_PATH=functions/node_modules node tools/${{ inputs.script || 'diag.js' }}
 
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: out, path: out, if-no-files-found: ignore, retention-days: 1 }
